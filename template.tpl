@@ -42,6 +42,13 @@ ___TEMPLATE_PARAMETERS___
     "help": "Enter here the Taboola Account ID. For any questions, contact your Account Manager."
   },
   {
+    "type": "TEXT",
+    "name": "campaignIds",
+    "displayName": "Campaign Ids",
+    "simpleValueType": true,
+    "help": "(optional)Enter here the Taboola Campaign ID or IDs, in case this event is relevant for more than once campaign. For any questions, contact your Account Manager."
+  },
+  {
     "type": "SELECT",
     "name": "eventType",
     "displayName": "Event Type",
@@ -277,6 +284,7 @@ const params = {
 };
 
 if (data.productIds) params.productIds = data.productIds;
+if (data.campaignIds) params.campaignIds = data.campaignIds;
 if (data.currency) params.currency = data.currency;
 if (data.orderId) params.orderId = data.orderId;
 if (data.categoryId) params.categoryId = data.categoryId;
