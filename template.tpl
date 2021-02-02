@@ -52,7 +52,7 @@ ___TEMPLATE_PARAMETERS___
     "type": "SELECT",
     "name": "eventType",
     "displayName": "Event Type",
-    "macrosInSelect": false,
+    "macrosInSelect": true,
     "selectItems": [
       {
         "value": "ADD_TO_CART",
@@ -99,6 +99,51 @@ ___TEMPLATE_PARAMETERS___
     "subParams": [
       {
         "type": "SELECT",
+        "name": "category",
+        "displayName": "Category",
+        "macrosInSelect": true,
+        "selectItems": [],
+        "simpleValueType": true,
+        "help": "Select the GTM Variable that return the name of the category being viewed. Example: “Womens Shoes”",
+        "enablingConditions": [
+          {
+            "paramName": "eventType",
+            "paramValue": "CATEGORY_VIEW",
+            "type": "EQUALS"
+          }
+        ]
+      },
+      {
+        "type": "SELECT",
+        "name": "categoryId",
+        "displayName": "Category Id (Optional)",
+        "macrosInSelect": true,
+        "selectItems": [],
+        "simpleValueType": true,
+        "help": "Select the GTM Variable that return the ID of the category being viewed",
+        "enablingConditions": [
+          {
+            "paramName": "eventType",
+            "paramValue": "CATEGORY_VIEW",
+            "type": "EQUALS"
+          }
+        ]
+      },
+      {
+        "type": "CHECKBOX",
+        "name": "sendCategoryProductIds",
+        "checkboxText": "Send product ids",
+        "simpleValueType": true,
+        "enablingConditions": [
+          {
+            "paramName": "eventType",
+            "paramValue": "CATEGORY_VIEW",
+            "type": "EQUALS"
+          }
+        ]
+      },
+      {
+        "type": "SELECT",
         "name": "productIds",
         "displayName": "Product IDs",
         "macrosInSelect": true,
@@ -132,11 +177,6 @@ ___TEMPLATE_PARAMETERS___
           },
           {
             "paramName": "eventType",
-            "paramValue": "CATEGORY_VIEW",
-            "type": "EQUALS"
-          },
-          {
-            "paramName": "eventType",
             "paramValue": "SEARCH",
             "type": "EQUALS"
           },
@@ -144,41 +184,14 @@ ___TEMPLATE_PARAMETERS___
             "paramName": "eventType",
             "paramValue": "CHECKOUT",
             "type": "EQUALS"
+          },
+          {
+            "paramName": "sendCategoryProductIds",
+            "paramValue": true,
+            "type": "EQUALS"
           }
         ],
         "help": "Select the GTM Variable that returns Product IDs (SKUs) in the current page. Example: [“sku1”, “sku2”]"
-      },
-      {
-        "type": "SELECT",
-        "name": "category",
-        "displayName": "Category",
-        "macrosInSelect": true,
-        "selectItems": [],
-        "simpleValueType": true,
-        "help": "Select the GTM Variable that return the name of the category being viewed. Example: “Womens Shoes”",
-        "enablingConditions": [
-          {
-            "paramName": "eventType",
-            "paramValue": "CATEGORY_VIEW",
-            "type": "EQUALS"
-          }
-        ]
-      },
-      {
-        "type": "SELECT",
-        "name": "categoryId",
-        "displayName": "Category Id (Optional)",
-        "macrosInSelect": true,
-        "selectItems": [],
-        "simpleValueType": true,
-        "help": "Select the GTM Variable that return the ID of the category being viewed",
-        "enablingConditions": [
-          {
-            "paramName": "eventType",
-            "paramValue": "CATEGORY_VIEW",
-            "type": "EQUALS"
-          }
-        ]
       },
       {
         "type": "SELECT",
