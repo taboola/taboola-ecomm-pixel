@@ -49,6 +49,12 @@ ___TEMPLATE_PARAMETERS___
     "help": "(optional)Enter here the Taboola Campaign ID or IDs, in case this event is relevant for more than once campaign. For any questions, contact your Account Manager."
   },
   {
+    "type": "CHECKBOX",
+    "name": "enhancedEcomm",
+    "checkboxText": "Enhanced Ecommerce",
+    "simpleValueType": true
+  },
+  {
     "type": "SELECT",
     "name": "eventType",
     "displayName": "Event Type",
@@ -273,6 +279,71 @@ ___TEMPLATE_PARAMETERS___
         ],
         "help": "Select the GTM Variable that return the Order ID of the current transaction. This ID should be unique per Order."
       }
+    ],
+    "enablingConditions": [
+      {
+        "paramName": "enhancedEcomm",
+        "paramValue": false,
+        "type": "EQUALS"
+      }
+    ]
+  },
+  {
+    "type": "SELECT",
+    "name": "eventType_enhanced",
+    "displayName": "Event Type",
+    "macrosInSelect": true,
+    "selectItems": [
+      {
+        "value": "ADD_TO_CART",
+        "displayValue": "Add To Cart"
+      },
+      {
+        "value": "REMOVE_FROM_CART",
+        "displayValue": "Remove From Cart"
+      },
+      {
+        "value": "PRODUCT_VIEW",
+        "displayValue": "Product View"
+      },
+      {
+        "value": "PURCHASE",
+        "displayValue": "Purchase"
+      },
+      {
+        "value": "CHECKOUT",
+        "displayValue": "Checkout"
+      },
+      {
+        "value": "CATEGORY_VIEW",
+        "displayValue": "Category View"
+      }
+    ],
+    "simpleValueType": true,
+    "enablingConditions": [
+      {
+        "paramName": "enhancedEcomm",
+        "paramValue": true,
+        "type": "EQUALS"
+      }
+    ],
+    "subParams": [
+      {
+        "type": "SELECT",
+        "name": "categoryIdEnh",
+        "displayName": "Category Id (Optional)",
+        "macrosInSelect": true,
+        "selectItems": [],
+        "simpleValueType": true,
+        "help": "Select the GTM Variable that return the ID of the category being viewed",
+        "enablingConditions": [
+          {
+            "paramName": "eventType_enhanced",
+            "paramValue": "CATEGORY_VIEW",
+            "type": "EQUALS"
+          }
+        ]
+      }
     ]
   }
 ]
@@ -285,6 +356,8 @@ const log = require('logToConsole');
 const createQueue = require('createQueue');
 const injectScript = require('injectScript');
 const encodeUriComponent = require('encodeUriComponent');
+const copyFromDataLayer = require('copyFromDataLayer');
+const getType = require('getType');
 
 const _tfa = createQueue('_tfa');
 const accountId = data.accountId;
@@ -296,16 +369,67 @@ const params = {
   name:data.eventType,
 };
 
-if (data.productIds) params.productIds = data.productIds;
-if (data.campaignIds) params.campaignIds = data.campaignIds;
-if (data.currency) params.currency = data.currency;
-if (data.orderId) params.orderId = data.orderId;
-if (data.categoryId) params.categoryId = data.categoryId;
-if (data.category) params.category = data.category;
-if (data.searchTerm) params.searchTerm = data.searchTerm;
-if (data.cartDetails) params.cartDetails = data.cartDetails;
-if (data.value) params.value = data.value;
+const mapProducts = products => {
+  return products.map(i => {
+       return {
+         productId: i.id,
+         quantity: i.quantity,
+         price: i.price
+       };
+    });
+};
 
+const mapProductIds = products => {
+ return products.map(i => {
+      return i.id;
+    });    
+};
+
+if (data.enhancedEcomm){
+  const ecomm = copyFromDataLayer('ecommerce') || {}; 
+  if(data.eventType === 'ADD_TO_CART' && ecomm.hasOwnProperty('add') && getType(ecomm.add.products) === 'array'){
+    params.productIds = mapProductIds(ecomm.add.products);
+  }
+  
+  if(data.eventType === 'REMOVE_FROM_CART' && ecomm.hasOwnProperty('remove') && getType(ecomm.remove.products) === 'array'){
+     params.productIds = mapProductIds(ecomm.remove.products);   
+  }
+  
+  if(data.eventType === 'PRODUCT_VIEW' && ecomm.hasOwnProperty('detail') && getType(ecomm.detail.products) === 'array'){
+    params.productIds = [ecomm.detail.products[0].id];
+  }
+  
+  if(data.eventType === 'PURCHASE' && ecomm.hasOwnProperty('purchase')){
+    params.cartDetails = mapProducts(ecomm.purchase.products);
+    params.currency = ecomm.currencyCode;
+    params.value = ecomm.purchase.actionField.revenue;
+    params.orderId = ecomm.purchase.actionField.id;
+  }
+  
+  if(data.eventType === 'CHECKOUT' && ecomm.hasOwnProperty('checkout') ){
+    if(!ecomm.checkout.products){
+     return; // when the checkout step doesn't have products data
+    }
+    params.productIds = mapProductIds(ecomm.checkout.products);   
+  } 
+  
+  if(data.eventType === 'CATEGORY_VIEW' && ecomm.hasOwnProperty('impressions') ){
+    params.productIds = mapProductIds(ecomm.impressions.slice(0,5));  
+    params.category = ecomm.impressions[0].category;   
+    if (data.categoryIdEnh) params.categoryId = data.categoryIdEnh;
+  } 
+}
+else {
+  if (data.productIds) params.productIds = data.productIds;
+  if (data.campaignIds) params.campaignIds = data.campaignIds;
+  if (data.currency) params.currency = data.currency;
+  if (data.orderId) params.orderId = data.orderId;
+  if (data.categoryId) params.categoryId = data.categoryId;
+  if (data.category) params.category = data.category;
+  if (data.searchTerm) params.searchTerm = data.searchTerm;
+  if (data.cartDetails) params.cartDetails = data.cartDetails;
+  if (data.value) params.value = data.value;
+}
 _tfa(params);
 
 // Load the Taboola script if not already loaded
@@ -419,13 +543,127 @@ ___WEB_PERMISSIONS___
       ]
     },
     "isRequired": true
+  },
+  {
+    "instance": {
+      "key": {
+        "publicId": "read_data_layer",
+        "versionId": "1"
+      },
+      "param": [
+        {
+          "key": "keyPatterns",
+          "value": {
+            "type": 2,
+            "listItem": [
+              {
+                "type": 1,
+                "string": "ecommerce.*"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "clientAnnotations": {
+      "isEditedByUser": true
+    },
+    "isRequired": true
   }
 ]
 
 
 ___TESTS___
 
-scenarios: []
+scenarios:
+- name: enhanced purchase
+  code: "const mockData = {\n  enhancedEcomm: true,\n  eventType: 'PURCHASE',\n  accountId:\
+    \ '1'\n};\n\nconst dataLayer = {\n       currencyCode: 'USD',\n       purchase:\
+    \ {\n         actionField: {\n          id: '1111',\n          revenue: 555  \n\
+    \         },\n         products: [{ \n            name: 'taboola item', \n   \
+    \         id: 'A123', \n            price: 999,\n            quantity: 5\n   \
+    \     }]\n       } \n  };\nmock('copyFromDataLayer', (key) => {\n  return dataLayer;\n\
+    });\n\nconst expected_params = {\n  notify: 'ecevent',\n  id: '1',\n  name: 'PURCHASE',\n\
+    \  orderId: '1111',\n  currency: 'USD',\n  value: 555,\n  cartDetails: [\n   {\
+    \ productId: 'A123', \n     quantity: 5,\n     price: 999\n   }\n ]\n};\nmock('createQueue',\
+    \ (name) => {\n  assertThat(name).isEqualTo('_tfa');\n  return function(item)\
+    \ {\n    assertThat(item).isEqualTo(expected_params);\n  };\n});\n\n// Call runCode\
+    \ to run the template's code.\nrunCode(mockData);\n\n// Verify that the tag finished\
+    \ successfully.\nassertApi('injectScript').wasCalled();\n\n\n"
+- name: enhanced checkout
+  code: "const mockData = {\n  enhancedEcomm: true,\n  eventType: 'CHECKOUT',\n  accountId:\
+    \ '1'\n};\n\nconst dataLayer = {\n      checkout: {\n         actionField: {step:\
+    \ 1, //step number\n                        option: 'DHL' //step value\n     \
+    \               },\n         products: [{ \n            name: 'taboola item',\
+    \ \n            id: 'A123', \n            price: 999,\n            quantity: 5\n\
+    \        }]\n       } \n  };\nmock('copyFromDataLayer', (key) => {\n  return dataLayer;\n\
+    });\n\nconst expected_params = {\n  notify: 'ecevent',\n  id: '1',\n  name: 'CHECKOUT',\n\
+    \  productIds: ['A123']\n};\nmock('createQueue', (name) => {\n  assertThat(name).isEqualTo('_tfa');\n\
+    \  return function(item) {\n    assertThat(item).isEqualTo(expected_params);\n\
+    \  };\n});\n\n// Call runCode to run the template's code.\nrunCode(mockData);\n\
+    \n// Verify that the tag finished successfully.\nassertApi('injectScript').wasCalled();\n\
+    \n\n"
+- name: enhanced checkout - multiple
+  code: "const mockData = {\n  enhancedEcomm: true,\n  eventType: 'CHECKOUT',\n  accountId:\
+    \ '1'\n};\n\nconst dataLayer = {\n      checkout: {\n         actionField: {step:\
+    \ 1, //step number\n                        option: 'DHL' //step value\n     \
+    \               },\n         products: [{ \n            name: 'taboola item',\
+    \ \n            id: 'A123', \n            price: 999,\n            quantity: 5\n\
+    \        },\n        { \n            name: 'taboola item2', \n            id:\
+    \ 'B123', \n            price: 999,\n            quantity: 5\n        }]\n   \
+    \    } \n  };\nmock('copyFromDataLayer', (key) => {\n  return dataLayer;\n});\n\
+    \nconst expected_params = {\n  notify: 'ecevent',\n  id: '1',\n  name: 'CHECKOUT',\n\
+    \  productIds: ['A123', 'B123']\n};\nmock('createQueue', (name) => {\n  assertThat(name).isEqualTo('_tfa');\n\
+    \  return function(item) {\n    assertThat(item).isEqualTo(expected_params);\n\
+    \  };\n});\n\n// Call runCode to run the template's code.\nrunCode(mockData);\n\
+    \n// Verify that the tag finished successfully.\nassertApi('injectScript').wasCalled();\n\
+    \n\n"
+- name: enhanced checkout - step 2 - ignore
+  code: "const mockData = {\n  enhancedEcomm: true,\n  eventType: 'CHECKOUT',\n  accountId:\
+    \ '1'\n};\n\nconst dataLayer = {\n      checkout: {\n         actionField: {step:\
+    \ 2, \n                        option: 'MasterCard' \n                    }\n\
+    \       } \n  };\nmock('copyFromDataLayer', (key) => {\n  return dataLayer;\n\
+    });\n\n// Call runCode to run the template's code.\nrunCode(mockData);\n\n// Verify\
+    \ that the tag finished successfully.\nassertApi('injectScript').wasNotCalled();\n\
+    \n\n"
+- name: enhanced add to cart
+  code: "const mockData = {\n  enhancedEcomm: true,\n  eventType: 'ADD_TO_CART',\n\
+    \  accountId: '1'\n};\n\nconst dataLayer = {\n      add: {\n         actionField:\
+    \ {\n          list: 'Shopping cart'\n          },\n         products: [{ \n \
+    \           name: 'taboola item', \n            id: 'A123', \n            price:\
+    \ 999,\n            quantity: 5\n        },\n        { \n            name: 'taboola\
+    \ item2', \n            id: 'B123', \n            price: 999,\n            quantity:\
+    \ 5\n        }]\n       } \n  };\nmock('copyFromDataLayer', (key) => {\n  return\
+    \ dataLayer;\n});\n\nconst expected_params = {\n  notify: 'ecevent',\n  id: '1',\n\
+    \  name: 'ADD_TO_CART',\n  productIds: ['A123', 'B123']\n};\nmock('createQueue',\
+    \ (name) => {\n  assertThat(name).isEqualTo('_tfa');\n  return function(item)\
+    \ {\n    assertThat(item).isEqualTo(expected_params);\n  };\n});\n\n// Call runCode\
+    \ to run the template's code.\nrunCode(mockData);\n\n// Verify that the tag finished\
+    \ successfully.\nassertApi('injectScript').wasCalled();\n\n\n"
+- name: enhanced product view
+  code: "const mockData = {\n  enhancedEcomm: true,\n  eventType: 'PRODUCT_VIEW',\n\
+    \  accountId: '1'\n};\n\nconst dataLayer = {\n      detail: {\n         actionField:\
+    \ { list: 'Search Results' },\n         products: [{ \n            name: 'taboola\
+    \ item', \n            id: 'A123', \n            price: 999,\n            quantity:\
+    \ 5\n        }]\n       } \n  };\nmock('copyFromDataLayer', (key) => {\n  return\
+    \ dataLayer;\n});\n\nconst expected_params = {\n  notify: 'ecevent',\n  id: '1',\n\
+    \  name: 'PRODUCT_VIEW',\n  productIds: ['A123']\n};\nmock('createQueue', (name)\
+    \ => {\n  assertThat(name).isEqualTo('_tfa');\n  return function(item) {\n   \
+    \ assertThat(item).isEqualTo(expected_params);\n  };\n});\n\n// Call runCode to\
+    \ run the template's code.\nrunCode(mockData);\n\n// Verify that the tag finished\
+    \ successfully.\nassertApi('injectScript').wasCalled();\n\n\n"
+- name: enhanced category view
+  code: "const mockData = {\n  enhancedEcomm: true,\n  eventType: 'CATEGORY_VIEW',\n\
+    \  accountId: '1'\n};\n\nconst dataLayer = {\n      impressions: [{ \n       \
+    \     name: 'taboola item', \n            id: 'A123', \n            price: 999,\n\
+    \            quantity: 5,\n            category: 'taboola category'\n        }]\n\
+    \  };\n\nmock('copyFromDataLayer', (key) => {\n  return dataLayer;\n});\n\nconst\
+    \ expected_params = {\n  notify: 'ecevent',\n  id: '1',\n  name: 'CATEGORY_VIEW',\n\
+    \  productIds: ['A123'],\n  category: 'taboola category',\n};\nmock('createQueue',\
+    \ (name) => {\n  assertThat(name).isEqualTo('_tfa');\n  return function(item)\
+    \ {\n    assertThat(item).isEqualTo(expected_params);\n  };\n});\n\n// Call runCode\
+    \ to run the template's code.\nrunCode(mockData);\n\n// Verify that the tag finished\
+    \ successfully.\nassertApi('injectScript').wasCalled();\n\n\n"
 
 
 ___NOTES___
