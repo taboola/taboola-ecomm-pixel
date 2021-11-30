@@ -51,8 +51,9 @@ ___TEMPLATE_PARAMETERS___
   {
     "type": "CHECKBOX",
     "name": "enhancedEcomm",
-    "checkboxText": "Enhanced Ecommerce",
-    "simpleValueType": true
+    "checkboxText": "Use Enhanced Ecommerce",
+    "simpleValueType": true,
+    "help": "Select this option if you have a Google Enhance Ecommerce data layer installed on your site. When this option is selected, the required parameters will be collected from the data layer."
   },
   {
     "type": "SELECT",
