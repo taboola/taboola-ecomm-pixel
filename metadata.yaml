@@ -1,6 +1,8 @@
 homepage: "www.taboola.com",
 documentation: "https://help.taboola.com/hc/en-us/articles/360033655813-Implementing-the-Taboola-Pixel-Template-for-Google-Tag-Manager",
 versions:
+  - sha: 98706d8924742b92680cb0e90928ec4c663b8698
+    changeNotes: Fix Enhanced pixel
   - sha: 3a867ab6890e16ea9ddc015fc2d15aceed93ecaf
     changeNotes: Add tooltip for Enhanced ecommerce checkbox
   - sha: 8a18af50a45ff082289c7eb56eea9f23ac8daac2
