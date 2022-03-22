@@ -367,7 +367,7 @@ const accountId = data.accountId;
 const params = {
   notify: 'ecevent',
   id: accountId,
-  name:data.eventType,
+  name:data.eventType || data.eventType_enhanced,
 };
 
 const mapProducts = products => {
@@ -388,33 +388,33 @@ const mapProductIds = products => {
 
 if (data.enhancedEcomm){
   const ecomm = copyFromDataLayer('ecommerce') || {}; 
-  if(data.eventType === 'ADD_TO_CART' && ecomm.hasOwnProperty('add') && getType(ecomm.add.products) === 'array'){
+  if(data.eventType_enhanced === 'ADD_TO_CART' && ecomm.hasOwnProperty('add') && getType(ecomm.add.products) === 'array'){
     params.productIds = mapProductIds(ecomm.add.products);
   }
   
-  if(data.eventType === 'REMOVE_FROM_CART' && ecomm.hasOwnProperty('remove') && getType(ecomm.remove.products) === 'array'){
+  if(data.eventType_enhanced === 'REMOVE_FROM_CART' && ecomm.hasOwnProperty('remove') && getType(ecomm.remove.products) === 'array'){
      params.productIds = mapProductIds(ecomm.remove.products);   
   }
   
-  if(data.eventType === 'PRODUCT_VIEW' && ecomm.hasOwnProperty('detail') && getType(ecomm.detail.products) === 'array'){
+  if(data.eventType_enhanced === 'PRODUCT_VIEW' && ecomm.hasOwnProperty('detail') && getType(ecomm.detail.products) === 'array'){
     params.productIds = [ecomm.detail.products[0].id];
   }
   
-  if(data.eventType === 'PURCHASE' && ecomm.hasOwnProperty('purchase')){
+  if(data.eventType_enhanced === 'PURCHASE' && ecomm.hasOwnProperty('purchase')){
     params.cartDetails = mapProducts(ecomm.purchase.products);
     params.currency = ecomm.currencyCode;
     params.value = ecomm.purchase.actionField.revenue;
     params.orderId = ecomm.purchase.actionField.id;
   }
   
-  if(data.eventType === 'CHECKOUT' && ecomm.hasOwnProperty('checkout') ){
+  if(data.eventType_enhanced === 'CHECKOUT' && ecomm.hasOwnProperty('checkout') ){
     if(!ecomm.checkout.products){
      return; // when the checkout step doesn't have products data
     }
     params.productIds = mapProductIds(ecomm.checkout.products);   
   } 
   
-  if(data.eventType === 'CATEGORY_VIEW' && ecomm.hasOwnProperty('impressions') ){
+  if(data.eventType_enhanced === 'CATEGORY_VIEW' && ecomm.hasOwnProperty('impressions') ){
     params.productIds = mapProductIds(ecomm.impressions.slice(0,5));  
     params.category = ecomm.impressions[0].category;   
     if (data.categoryIdEnh) params.categoryId = data.categoryIdEnh;
@@ -578,12 +578,12 @@ ___TESTS___
 
 scenarios:
 - name: enhanced purchase
-  code: "const mockData = {\n  enhancedEcomm: true,\n  eventType: 'PURCHASE',\n  accountId:\
-    \ '1'\n};\n\nconst dataLayer = {\n       currencyCode: 'USD',\n       purchase:\
-    \ {\n         actionField: {\n          id: '1111',\n          revenue: 555  \n\
-    \         },\n         products: [{ \n            name: 'taboola item', \n   \
-    \         id: 'A123', \n            price: 999,\n            quantity: 5\n   \
-    \     }]\n       } \n  };\nmock('copyFromDataLayer', (key) => {\n  return dataLayer;\n\
+  code: "const mockData = {\n  enhancedEcomm: true,\n  eventType_enhanced: 'PURCHASE',\n\
+    \  accountId: '1'\n};\n\nconst dataLayer = {\n       currencyCode: 'USD',\n  \
+    \     purchase: {\n         actionField: {\n          id: '1111',\n          revenue:\
+    \ 555  \n         },\n         products: [{ \n            name: 'taboola item',\
+    \ \n            id: 'A123', \n            price: 999,\n            quantity: 5\n\
+    \        }]\n       } \n  };\nmock('copyFromDataLayer', (key) => {\n  return dataLayer;\n\
     });\n\nconst expected_params = {\n  notify: 'ecevent',\n  id: '1',\n  name: 'PURCHASE',\n\
     \  orderId: '1111',\n  currency: 'USD',\n  value: 555,\n  cartDetails: [\n   {\
     \ productId: 'A123', \n     quantity: 5,\n     price: 999\n   }\n ]\n};\nmock('createQueue',\
@@ -592,10 +592,10 @@ scenarios:
     \ to run the template's code.\nrunCode(mockData);\n\n// Verify that the tag finished\
     \ successfully.\nassertApi('injectScript').wasCalled();\n\n\n"
 - name: enhanced checkout
-  code: "const mockData = {\n  enhancedEcomm: true,\n  eventType: 'CHECKOUT',\n  accountId:\
-    \ '1'\n};\n\nconst dataLayer = {\n      checkout: {\n         actionField: {step:\
-    \ 1, //step number\n                        option: 'DHL' //step value\n     \
-    \               },\n         products: [{ \n            name: 'taboola item',\
+  code: "const mockData = {\n  enhancedEcomm: true,\n  eventType_enhanced: 'CHECKOUT',\n\
+    \  accountId: '1'\n};\n\nconst dataLayer = {\n      checkout: {\n         actionField:\
+    \ {step: 1, //step number\n                        option: 'DHL' //step value\n\
+    \                    },\n         products: [{ \n            name: 'taboola item',\
     \ \n            id: 'A123', \n            price: 999,\n            quantity: 5\n\
     \        }]\n       } \n  };\nmock('copyFromDataLayer', (key) => {\n  return dataLayer;\n\
     });\n\nconst expected_params = {\n  notify: 'ecevent',\n  id: '1',\n  name: 'CHECKOUT',\n\
@@ -605,10 +605,10 @@ scenarios:
     \n// Verify that the tag finished successfully.\nassertApi('injectScript').wasCalled();\n\
     \n\n"
 - name: enhanced checkout - multiple
-  code: "const mockData = {\n  enhancedEcomm: true,\n  eventType: 'CHECKOUT',\n  accountId:\
-    \ '1'\n};\n\nconst dataLayer = {\n      checkout: {\n         actionField: {step:\
-    \ 1, //step number\n                        option: 'DHL' //step value\n     \
-    \               },\n         products: [{ \n            name: 'taboola item',\
+  code: "const mockData = {\n  enhancedEcomm: true,\n  eventType_enhanced: 'CHECKOUT',\n\
+    \  accountId: '1'\n};\n\nconst dataLayer = {\n      checkout: {\n         actionField:\
+    \ {step: 1, //step number\n                        option: 'DHL' //step value\n\
+    \                    },\n         products: [{ \n            name: 'taboola item',\
     \ \n            id: 'A123', \n            price: 999,\n            quantity: 5\n\
     \        },\n        { \n            name: 'taboola item2', \n            id:\
     \ 'B123', \n            price: 999,\n            quantity: 5\n        }]\n   \
@@ -620,15 +620,15 @@ scenarios:
     \n// Verify that the tag finished successfully.\nassertApi('injectScript').wasCalled();\n\
     \n\n"
 - name: enhanced checkout - step 2 - ignore
-  code: "const mockData = {\n  enhancedEcomm: true,\n  eventType: 'CHECKOUT',\n  accountId:\
-    \ '1'\n};\n\nconst dataLayer = {\n      checkout: {\n         actionField: {step:\
-    \ 2, \n                        option: 'MasterCard' \n                    }\n\
-    \       } \n  };\nmock('copyFromDataLayer', (key) => {\n  return dataLayer;\n\
+  code: "const mockData = {\n  enhancedEcomm: true,\n  eventType_enhanced: 'CHECKOUT',\n\
+    \  accountId: '1'\n};\n\nconst dataLayer = {\n      checkout: {\n         actionField:\
+    \ {step: 2, \n                        option: 'MasterCard' \n                \
+    \    }\n       } \n  };\nmock('copyFromDataLayer', (key) => {\n  return dataLayer;\n\
     });\n\n// Call runCode to run the template's code.\nrunCode(mockData);\n\n// Verify\
     \ that the tag finished successfully.\nassertApi('injectScript').wasNotCalled();\n\
     \n\n"
 - name: enhanced add to cart
-  code: "const mockData = {\n  enhancedEcomm: true,\n  eventType: 'ADD_TO_CART',\n\
+  code: "const mockData = {\n  enhancedEcomm: true,\n  eventType_enhanced: 'ADD_TO_CART',\n\
     \  accountId: '1'\n};\n\nconst dataLayer = {\n      add: {\n         actionField:\
     \ {\n          list: 'Shopping cart'\n          },\n         products: [{ \n \
     \           name: 'taboola item', \n            id: 'A123', \n            price:\
@@ -642,7 +642,7 @@ scenarios:
     \ to run the template's code.\nrunCode(mockData);\n\n// Verify that the tag finished\
     \ successfully.\nassertApi('injectScript').wasCalled();\n\n\n"
 - name: enhanced product view
-  code: "const mockData = {\n  enhancedEcomm: true,\n  eventType: 'PRODUCT_VIEW',\n\
+  code: "const mockData = {\n  enhancedEcomm: true,\n  eventType_enhanced: 'PRODUCT_VIEW',\n\
     \  accountId: '1'\n};\n\nconst dataLayer = {\n      detail: {\n         actionField:\
     \ { list: 'Search Results' },\n         products: [{ \n            name: 'taboola\
     \ item', \n            id: 'A123', \n            price: 999,\n            quantity:\
@@ -654,17 +654,18 @@ scenarios:
     \ run the template's code.\nrunCode(mockData);\n\n// Verify that the tag finished\
     \ successfully.\nassertApi('injectScript').wasCalled();\n\n\n"
 - name: enhanced category view
-  code: "const mockData = {\n  enhancedEcomm: true,\n  eventType: 'CATEGORY_VIEW',\n\
-    \  accountId: '1'\n};\n\nconst dataLayer = {\n      impressions: [{ \n       \
-    \     name: 'taboola item', \n            id: 'A123', \n            price: 999,\n\
-    \            quantity: 5,\n            category: 'taboola category'\n        }]\n\
-    \  };\n\nmock('copyFromDataLayer', (key) => {\n  return dataLayer;\n});\n\nconst\
-    \ expected_params = {\n  notify: 'ecevent',\n  id: '1',\n  name: 'CATEGORY_VIEW',\n\
-    \  productIds: ['A123'],\n  category: 'taboola category',\n};\nmock('createQueue',\
-    \ (name) => {\n  assertThat(name).isEqualTo('_tfa');\n  return function(item)\
-    \ {\n    assertThat(item).isEqualTo(expected_params);\n  };\n});\n\n// Call runCode\
-    \ to run the template's code.\nrunCode(mockData);\n\n// Verify that the tag finished\
-    \ successfully.\nassertApi('injectScript').wasCalled();\n\n\n"
+  code: "const mockData = {\n  enhancedEcomm: true,\n  eventType_enhanced: 'CATEGORY_VIEW',\n\
+    \  accountId: '1',\n  categoryIdEnh: 123\n};\n\nconst dataLayer = {\n      impressions:\
+    \ [{ \n            name: 'taboola item', \n            id: 'A123', \n        \
+    \    price: 999,\n            quantity: 5,\n            category: 'taboola category'\n\
+    \        }]\n  };\n\nmock('copyFromDataLayer', (key) => {\n  return dataLayer;\n\
+    });\n\nconst expected_params = {\n  notify: 'ecevent',\n  id: '1',\n  name: 'CATEGORY_VIEW',\n\
+    \  productIds: ['A123'],\n  category: 'taboola category',\n  categoryId: 123\n\
+    };\nmock('createQueue', (name) => {\n  assertThat(name).isEqualTo('_tfa');\n \
+    \ return function(item) {\n    assertThat(item).isEqualTo(expected_params);\n\
+    \  };\n});\n\n// Call runCode to run the template's code.\nrunCode(mockData);\n\
+    \n// Verify that the tag finished successfully.\nassertApi('injectScript').wasCalled();\n\
+    \n\n"
 
 
 ___NOTES___
