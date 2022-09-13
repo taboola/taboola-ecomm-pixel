@@ -1,4 +1,4 @@
-﻿___TERMS_OF_SERVICE___
+___TERMS_OF_SERVICE___
 
 By creating or modifying this file you agree to Google Tag Manager's Community
 Template Gallery Developer Terms of Service available at
@@ -388,6 +388,9 @@ const mapProductIds = products => {
 
 if (data.enhancedEcomm){
   const ecomm = copyFromDataLayer('ecommerce') || {}; 
+  
+  verifyMandatoryElements(data.eventType_enhanced, log, ecomm);
+  
   if(data.eventType_enhanced === 'ADD_TO_CART' && ecomm.hasOwnProperty('add') && getType(ecomm.add.products) === 'array'){
     params.productIds = mapProductIds(ecomm.add.products);
   }
@@ -435,6 +438,53 @@ _tfa(params);
 
 // Load the Taboola script if not already loaded
 injectScript('https://cdn.taboola.com/libtrc/unip/' + encodeUriComponent(accountId) + '/tfa.js', data.gtmOnSuccess, data.gtmOnFailure, '_tfa_script');
+
+
+// verify enhanced mandatory fields
+function verifyMandatoryElements(eventType, log, ecommData) {
+  if (isProductsMissing(eventType, ecommData)) {
+    log('Error - mandatory field (products) is missing in Enhanced Ecommerce data layer for event type ' + eventType);
+  }
+  
+  if (eventType === 'PURCHASE') {
+   if (isNullOrEmpty(ecommData.purchase.actionField) || isNullOrEmpty(ecommData.purchase.actionField.id)) {
+     log('Error - mandatory field (actionField.id) is missing in Enhanced Ecommerce data layer for event type PURCHASE');
+   }
+   if (isNullOrEmpty(ecommData.currencyCode)) {
+     log('Error - mandatory field (currencyCode) is missing in Enhanced Ecommerce data layer for event type PURCHASE');
+   }
+   if (isNullOrEmpty(ecommData.purchase.actionField.revenue)) {
+     log('Error - mandatory field (revenue) is missing in Enhanced Ecommerce data layer for event type PURCHASE');
+   }
+  }
+  
+  else if (eventType === 'CATEGORY_VIEW') {
+    if (isNullOrEmpty(ecommData.impressions) || isNullOrEmpty(ecommData.impressions[0]) || isNullOrEmpty(ecommData.impressions[0].category)) {
+    log('Error - mandatory field (impressions and/or category) is missing in Enhanced Ecommerce data layer for event type CATEGORY_VIEW');
+    }
+  }
+  
+  else {
+    return true;
+  }
+}
+
+function isProductsMissing (eventType, ecommData) {
+  if ((eventType === 'ADD_TO_CART' && isNullOrEmpty(ecommData.add.products)) ||
+     (eventType === 'REMOVE_FROM_CART' && isNullOrEmpty(ecommData.remove.products)) ||
+     (eventType === 'PRODUCT_VIEW' && isNullOrEmpty(ecommData.detail.products[0].id)) ||
+     (eventType === 'PURCHASE' && isNullOrEmpty(ecommData.purchase.products)) ||
+     (eventType === 'CHECKOUT' && isNullOrEmpty(ecommData.checkout.products)) ||
+     (eventType === 'CATEGORY_VIEW' && isNullOrEmpty(ecommData.impressions.slice(0,5)))) {
+    return true;
+  } else {
+    return false;
+  }
+}
+
+function isNullOrEmpty(val){
+    return (val === undefined || val == null || val.length <= 0) ? true : false;
+}
 
 
 ___WEB_PERMISSIONS___
@@ -542,6 +592,9 @@ ___WEB_PERMISSIONS___
           }
         }
       ]
+    },
+    "clientAnnotations": {
+      "isEditedByUser": true
     },
     "isRequired": true
   },
@@ -666,6 +719,41 @@ scenarios:
     \  };\n});\n\n// Call runCode to run the template's code.\nrunCode(mockData);\n\
     \n// Verify that the tag finished successfully.\nassertApi('injectScript').wasCalled();\n\
     \n\n"
+- name: enhanced purchase missing mandatory fields
+  code: "const mockData = {\n  enhancedEcomm: true,\n  eventType_enhanced: 'PURCHASE',\n\
+    \  accountId: '1'\n};\n\nconst dataLayer = {\n       currencyCode: null,\n   \
+    \    purchase: {\n         actionField: {\n          id: undefined,\n        \
+    \  revenue: null  \n         },\n         products: []\n       } \n  };\nmock('copyFromDataLayer',\
+    \ (key) => {\n  return dataLayer;\n});\n\nconst expected_params = {\n  notify:\
+    \ 'ecevent',\n  id: '1',\n  name: 'PURCHASE',\n  currency: 'USD',\n  value: 555,\n\
+    \  cartDetails: [\n   { productId: 'A123', \n     quantity: 5,\n     price: 999\n\
+    \   }\n ]\n};\n\n// Call runCode to run the template's code.\nrunCode(mockData);\n\
+    \n// Verify that the tag finished successfully.\nassertApi('logToConsole').wasCalled(4);"
+- name: enhanced category view missing mandatory fields
+  code: "const mockData = {\n  enhancedEcomm: true,\n  eventType_enhanced: 'CATEGORY_VIEW',\n\
+    \  accountId: '1',\n  categoryIdEnh: 123\n};\n\nconst dataLayer = {\n      impressions:\
+    \ [{ \n            id: 'A123', \n            price: 999,\n            quantity:\
+    \ 5,\n            category: null\n        }]\n  };\n\nmock('copyFromDataLayer',\
+    \ (key) => {\n  return dataLayer;\n});\n\nconst expected_params = {\n  notify:\
+    \ 'ecevent',\n  id: '1',\n  name: 'PURCHASE',\n  currency: 'USD',\n  value: 555,\n\
+    \  cartDetails: [\n   { productId: 'A123', \n     quantity: 5,\n     price: 999\n\
+    \   }\n ]\n};\n\n// Call runCode to run the template's code.\nrunCode(mockData);\n\
+    \n// Verify that the tag finished successfully.\nassertApi('logToConsole').wasCalled(1);"
+- name: enhanced checkout missing mandatory fields
+  code: "const mockData = {\n  enhancedEcomm: true,\n  eventType_enhanced: 'CHECKOUT',\n\
+    \  accountId: '1'\n};\n\nconst dataLayer = {\n      checkout: {\n         actionField:\
+    \ {step: 1, //step number\n                        option: 'DHL' //step value\n\
+    \                    },\n         products: []\n       } \n  };\nmock('copyFromDataLayer',\
+    \ (key) => {\n  return dataLayer;\n});\n\n// Call runCode to run the template's\
+    \ code.\nrunCode(mockData);\n\n// Verify that the tag finished successfully.\n\
+    assertApi('logToConsole').wasCalled(1);"
+- name: enhanced add to cart missing mandatory fields
+  code: "const mockData = {\n  enhancedEcomm: true,\n  eventType_enhanced: 'ADD_TO_CART',\n\
+    \  accountId: '1'\n};\n\nconst dataLayer = {\n      add: {\n         actionField:\
+    \ {\n          list: 'Shopping cart'\n          },\n         products: []\n  \
+    \     } \n  };\nmock('copyFromDataLayer', (key) => {\n  return dataLayer;\n});\n\
+    \n// Call runCode to run the template's code.\nrunCode(mockData);\n\n// Verify\
+    \ that the tag finished successfully.\nassertApi('logToConsole').wasCalled(1);"
 
 
 ___NOTES___
