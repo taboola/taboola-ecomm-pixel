@@ -1,6 +1,8 @@
 homepage: "www.taboola.com",
 documentation: "https://help.taboola.com/hc/en-us/articles/360033655813-Implementing-the-Taboola-Pixel-Template-for-Google-Tag-Manager",
 versions:
+  - sha: b7a5404307b3f89feb5434c3e037571825af6d9e
+    changeNotes: Add validation for Enhanced ecommerce data layer
   - sha: 98706d8924742b92680cb0e90928ec4c663b8698
     changeNotes: Fix Enhanced pixel
   - sha: 3a867ab6890e16ea9ddc015fc2d15aceed93ecaf
