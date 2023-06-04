@@ -1,6 +1,8 @@
 homepage: "www.taboola.com",
 documentation: "https://help.taboola.com/hc/en-us/articles/360033655813-Implementing-the-Taboola-Pixel-Template-for-Google-Tag-Manager",
 versions:
+  - sha: 5bd9c6aa3c1880fa9637692ab77fbca5c44c2eb5
+    changeNotes: Added taboola base pixel - page_view event and added customer_type as an optional field in purchase event
   - sha: 3a7b3a624933861303d6880657d0eec70efb5d93
     changeNotes: Added taboola base pixel - page_view event + Added customer_type as an optional field in purchase event
   - sha: b7a5404307b3f89feb5434c3e037571825af6d9e
