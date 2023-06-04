@@ -138,7 +138,8 @@ ___TEMPLATE_PARAMETERS___
             "paramValue": "CATEGORY_VIEW",
             "type": "EQUALS"
           }
-        ]
+        ],
+        "notSetText": "None"
       },
       {
         "type": "CHECKBOX",
@@ -287,7 +288,7 @@ ___TEMPLATE_PARAMETERS___
       {
         "type": "SELECT",
         "name": "custType",
-        "displayName": "Customer Type",
+        "displayName": "Customer Type (Optional)",
         "macrosInSelect": true,
         "selectItems": [],
         "simpleValueType": true,
@@ -298,7 +299,8 @@ ___TEMPLATE_PARAMETERS___
             "type": "EQUALS"
           }
         ],
-        "help": "(Optional) The customer type, where 0 means this visitor is an existing customer; 1 means this visitor is a new customer"
+        "help": "The customer type, where 0 means this visitor is an existing customer; 1 means this visitor is a new customer",
+        "notSetText": "None"
       }
     ],
     "enablingConditions": [
