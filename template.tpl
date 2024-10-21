@@ -474,7 +474,6 @@ else {
   else {
     if (data.productIds) params.productIds = data.productIds;
     if (data.campaignIds) params.campaignIds = data.campaignIds;
-    if (data.custType) params.custType = data.custType;
     if (data.currency) params.currency = data.currency;
     if (data.orderId) params.orderId = data.orderId;
     if (data.categoryId) params.categoryId = data.categoryId;
