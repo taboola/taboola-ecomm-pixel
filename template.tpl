@@ -744,7 +744,7 @@ scenarios:
     \ accountId: '1',\n  custType: '1',\n  currency: 'USD',\n  cartDetails: [\n  \
     \ { productId: 'A123', \n     quantity: 5,\n     price: 999\n   }\n ]\n};\n\n\
     const expected_params = {\n  notify: 'ecevent',\n  id: '1',\n  name: 'PURCHASE',\n\
-    \  custType: '1',\n  currency: 'USD',\n  cartDetails: [\n   { productId: 'A123',\
+    \  currency: 'USD',\n  cartDetails: [\n   { productId: 'A123',\
     \ \n     quantity: 5,\n     price: 999\n   }\n ],\n  additionalInfo: {custType:\
     \ '1'}\n};\n\nmock('createQueue', (name) => {\n  if (name === '_tfa') {\n    return\
     \ function(item) {\n      assertThat(item).isEqualTo(expected_params);\n    };\n\
