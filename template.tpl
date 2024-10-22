@@ -383,6 +383,7 @@ const copyFromWindow = require('copyFromWindow');
 const encodeUriComponent = require('encodeUriComponent');
 const copyFromDataLayer = require('copyFromDataLayer');
 const getType = require('getType');
+const Object = require('Object');
 
 // Generate the global and local variables
 const initPixelPush = createQueue('__tfa_pixel_init');
@@ -399,6 +400,7 @@ if (data.eventType === 'PAGE_VIEW') {
       id: accountId,
       name: 'page_view'
     };
+    if (data.custType) pvParams.additionalInfo = {custType: data.custType};
     _tfa(pvParams);
     initPixelPush(accountId);
   }
@@ -410,6 +412,7 @@ else {
     id: accountId,
     name:data.eventType || data.eventType_enhanced,
   };
+  const additionalInfo = {};
 
   const mapProducts = products => {
     return products.map(i => {
@@ -449,6 +452,7 @@ else {
       params.currency = ecomm.currencyCode;
       params.value = ecomm.purchase.actionField.revenue;
       params.orderId = ecomm.purchase.actionField.id;
+      if (ecomm.custType) additionalInfo.custType = ecomm.custType;
     }
   
     if (data.eventType_enhanced === 'CHECKOUT' && ecomm.hasOwnProperty('checkout')) {
@@ -462,12 +466,14 @@ else {
       params.productIds = mapProductIds(ecomm.impressions.slice(0,5));  
       params.category = ecomm.impressions[0].category;   
       if (data.categoryIdEnh) params.categoryId = data.categoryIdEnh;
-    } 
+    }
+    if (Object.keys(additionalInfo).length != 0) {
+        params.additionalInfo = additionalInfo;
+    }
   }
   else {
     if (data.productIds) params.productIds = data.productIds;
     if (data.campaignIds) params.campaignIds = data.campaignIds;
-    if (data.custType) params.custType = data.custType;
     if (data.currency) params.currency = data.currency;
     if (data.orderId) params.orderId = data.orderId;
     if (data.categoryId) params.categoryId = data.categoryId;
@@ -475,6 +481,10 @@ else {
     if (data.searchTerm) params.searchTerm = data.searchTerm;
     if (data.cartDetails) params.cartDetails = data.cartDetails;
     if (data.value) params.value = data.value;
+    if (data.custType) additionalInfo.custType = data.custType;
+    if (Object.keys(additionalInfo).length != 0) {
+        params.additionalInfo = additionalInfo;
+    }
   }
   _tfa(params);
 }
@@ -688,6 +698,13 @@ ___WEB_PERMISSIONS___
       },
       "param": [
         {
+          "key": "allowedKeys",
+          "value": {
+            "type": 1,
+            "string": "specific"
+          }
+        },
+        {
           "key": "keyPatterns",
           "value": {
             "type": 2,
@@ -727,10 +744,11 @@ scenarios:
     \ accountId: '1',\n  custType: '1',\n  currency: 'USD',\n  cartDetails: [\n  \
     \ { productId: 'A123', \n     quantity: 5,\n     price: 999\n   }\n ]\n};\n\n\
     const expected_params = {\n  notify: 'ecevent',\n  id: '1',\n  name: 'PURCHASE',\n\
-    \  custType: '1',\n  currency: 'USD',\n  cartDetails: [\n   { productId: 'A123',\
-    \ \n     quantity: 5,\n     price: 999\n   }\n ]\n};\n\nmock('createQueue', (name)\
-    \ => {\n  if (name === '_tfa') {\n    return function(item) {\n      assertThat(item).isEqualTo(expected_params);\n\
-    \    };\n  } \n});\n\nmock('copyFromWindow', (name) => {\n  assertThat(name).isEqualTo('__tfa_pixel_init');\n\
+    \  currency: 'USD',\n  cartDetails: [\n   { productId: 'A123',\
+    \ \n     quantity: 5,\n     price: 999\n   }\n ],\n  additionalInfo: {custType:\
+    \ '1'}\n};\n\nmock('createQueue', (name) => {\n  if (name === '_tfa') {\n    return\
+    \ function(item) {\n      assertThat(item).isEqualTo(expected_params);\n    };\n\
+    \  } \n});\n\nmock('copyFromWindow', (name) => {\n  assertThat(name).isEqualTo('__tfa_pixel_init');\n\
     \  return [];\n});\n\n\n// Call runCode to run the template's code.\nrunCode(mockData);\n\
     \n// Verify that the tag finished successfully.\nassertApi('injectScript').wasCalled();\n\
     \n\n"
@@ -857,6 +875,17 @@ scenarios:
     \     } \n  };\nmock('copyFromDataLayer', (key) => {\n  return dataLayer;\n});\n\
     \n// Call runCode to run the template's code.\nrunCode(mockData);\n\n// Verify\
     \ that the tag finished successfully.\nassertApi('logToConsole').wasCalled(1);"
+- name: base pixel -page view with custType
+  code: "const mockData = {\n  enhancedEcomm: false,\n  eventType: 'PAGE_VIEW',\n\
+    \  accountId: '1',\n  custType: '1'\n};\n\nconst expected_params = {\n  notify:\
+    \ 'event',\n  id: '1',\n  name: 'page_view',\n  additionalInfo: {custType: '1'}\n\
+    };\n\nmock('createQueue', (name) => {\n  if (name === '__tfa_pixel_init') {\n\
+    \    return function(item) {\n      assertThat(item).isEqualTo(expected_params.id);\n\
+    \    };\n  }\n  if (name === '_tfa') {\n    return function(item) {\n      assertThat(item).isEqualTo(expected_params);\n\
+    \    };\n  } \n});\n\nmock('copyFromWindow', (name) => {\n  assertThat(name).isEqualTo('__tfa_pixel_init');\n\
+    \  return [];\n});\n\n\n// Call runCode to run the template's code.\nrunCode(mockData);\n\
+    \n// Verify that the tag finished successfully.\nassertApi('injectScript').wasCalled();\n\
+    \n\n"
 
 
 ___NOTES___
