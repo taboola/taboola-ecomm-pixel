@@ -1,6 +1,8 @@
 homepage: "www.taboola.com",
 documentation: "https://help.taboola.com/hc/en-us/articles/360033655813-Implementing-the-Taboola-Pixel-Template-for-Google-Tag-Manager",
 versions:
+  - sha: fa681b0e532e2b9e40020e76de8328d8b544ef38
+    changeNotes: added unified_id variable
   - sha: cb0a449bd0d1d6681e89719aba6cd08f64588cb4
     changeNotes: Fixed custType handling
   - sha: 5bd9c6aa3c1880fa9637692ab77fbca5c44c2eb5

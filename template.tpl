@@ -369,6 +369,12 @@ ___TEMPLATE_PARAMETERS___
         ]
       }
     ]
+  },
+  {
+    "type": "TEXT",
+    "name": "unified_id",
+    "displayName": "Hashed email",
+    "simpleValueType": true
   }
 ]
 
@@ -391,6 +397,16 @@ const initPixel = copyFromWindow('__tfa_pixel_init');
 const _tfa = createQueue('_tfa');
 const accountId = data.accountId;
 
+function getAdditionalInfo() {
+  let additionalInfo = {};
+  const ecomm = copyFromDataLayer('ecommerce') || {};
+  if (ecomm.custType) additionalInfo.custType = ecomm.custType;
+  if (data.custType) additionalInfo.custType = data.custType;
+  if (data.unified_id) additionalInfo.unified_id = data.unified_id;
+  if (Object.keys(additionalInfo).length) return additionalInfo;
+  return null;
+}
+
 // Handle base pixel - page view event
 if (data.eventType === 'PAGE_VIEW') {
   // If page_view hasn't been sent for the ID yet, do it now
@@ -400,7 +416,8 @@ if (data.eventType === 'PAGE_VIEW') {
       id: accountId,
       name: 'page_view'
     };
-    if (data.custType) pvParams.additionalInfo = {custType: data.custType};
+    const additionalInfo = getAdditionalInfo();
+    if (additionalInfo) pvParams.additionalInfo = additionalInfo;
     _tfa(pvParams);
     initPixelPush(accountId);
   }
@@ -412,7 +429,7 @@ else {
     id: accountId,
     name:data.eventType || data.eventType_enhanced,
   };
-  const additionalInfo = {};
+  const additionalInfo = getAdditionalInfo();
 
   const mapProducts = products => {
     return products.map(i => {
@@ -452,7 +469,6 @@ else {
       params.currency = ecomm.currencyCode;
       params.value = ecomm.purchase.actionField.revenue;
       params.orderId = ecomm.purchase.actionField.id;
-      if (ecomm.custType) additionalInfo.custType = ecomm.custType;
     }
   
     if (data.eventType_enhanced === 'CHECKOUT' && ecomm.hasOwnProperty('checkout')) {
@@ -467,9 +483,6 @@ else {
       params.category = ecomm.impressions[0].category;   
       if (data.categoryIdEnh) params.categoryId = data.categoryIdEnh;
     }
-    if (Object.keys(additionalInfo).length != 0) {
-        params.additionalInfo = additionalInfo;
-    }
   }
   else {
     if (data.productIds) params.productIds = data.productIds;
@@ -481,11 +494,10 @@ else {
     if (data.searchTerm) params.searchTerm = data.searchTerm;
     if (data.cartDetails) params.cartDetails = data.cartDetails;
     if (data.value) params.value = data.value;
-    if (data.custType) additionalInfo.custType = data.custType;
-    if (Object.keys(additionalInfo).length != 0) {
+  }
+  if (additionalInfo) {
         params.additionalInfo = additionalInfo;
     }
-  }
   _tfa(params);
 }
 
@@ -744,11 +756,10 @@ scenarios:
     \ accountId: '1',\n  custType: '1',\n  currency: 'USD',\n  cartDetails: [\n  \
     \ { productId: 'A123', \n     quantity: 5,\n     price: 999\n   }\n ]\n};\n\n\
     const expected_params = {\n  notify: 'ecevent',\n  id: '1',\n  name: 'PURCHASE',\n\
-    \  currency: 'USD',\n  cartDetails: [\n   { productId: 'A123',\
-    \ \n     quantity: 5,\n     price: 999\n   }\n ],\n  additionalInfo: {custType:\
-    \ '1'}\n};\n\nmock('createQueue', (name) => {\n  if (name === '_tfa') {\n    return\
-    \ function(item) {\n      assertThat(item).isEqualTo(expected_params);\n    };\n\
-    \  } \n});\n\nmock('copyFromWindow', (name) => {\n  assertThat(name).isEqualTo('__tfa_pixel_init');\n\
+    \  currency: 'USD',\n  cartDetails: [\n   { productId: 'A123', \n     quantity:\
+    \ 5,\n     price: 999\n   }\n ],\n  additionalInfo: {custType: '1'}\n};\n\nmock('createQueue',\
+    \ (name) => {\n  if (name === '_tfa') {\n    return function(item) {\n      assertThat(item).isEqualTo(expected_params);\n\
+    \    };\n  } \n});\n\nmock('copyFromWindow', (name) => {\n  assertThat(name).isEqualTo('__tfa_pixel_init');\n\
     \  return [];\n});\n\n\n// Call runCode to run the template's code.\nrunCode(mockData);\n\
     \n// Verify that the tag finished successfully.\nassertApi('injectScript').wasCalled();\n\
     \n\n"
@@ -882,6 +893,30 @@ scenarios:
     };\n\nmock('createQueue', (name) => {\n  if (name === '__tfa_pixel_init') {\n\
     \    return function(item) {\n      assertThat(item).isEqualTo(expected_params.id);\n\
     \    };\n  }\n  if (name === '_tfa') {\n    return function(item) {\n      assertThat(item).isEqualTo(expected_params);\n\
+    \    };\n  } \n});\n\nmock('copyFromWindow', (name) => {\n  assertThat(name).isEqualTo('__tfa_pixel_init');\n\
+    \  return [];\n});\n\n\n// Call runCode to run the template's code.\nrunCode(mockData);\n\
+    \n// Verify that the tag finished successfully.\nassertApi('injectScript').wasCalled();\n\
+    \n\n"
+- name: base pixel page view with unified_id
+  code: "const mockData = {\n  enhancedEcomm: false,\n  eventType: 'PAGE_VIEW',\n\
+    \  accountId: '1',\n  unified_id: '123456'\n};\n\nconst expected_params = {\n\
+    \  notify: 'event',\n  id: '1',\n  name: 'page_view',\n  additionalInfo:{unified_id:\
+    \ '123456'}\n};\n\nmock('createQueue', (name) => {\n  if (name === '__tfa_pixel_init')\
+    \ {\n    return function(item) {\n      assertThat(item).isEqualTo(expected_params.id);\n\
+    \    };\n  }\n  if (name === '_tfa') {\n    return function(item) {\n      assertThat(item).isEqualTo(expected_params);\n\
+    \    };\n  } \n});\n\nmock('copyFromWindow', (name) => {\n  assertThat(name).isEqualTo('__tfa_pixel_init');\n\
+    \  return [];\n});\n\n\n// Call runCode to run the template's code.\nrunCode(mockData);\n\
+    \n// Verify that the tag finished successfully.\nassertApi('injectScript').wasCalled();\n\
+    \n\n"
+- name: purchase with unified_id
+  code: "const mockData = {\n  enhancedEcomm: false,\n  eventType: 'PURCHASE',\n \
+    \ accountId: '1',\n  custType: '1',\n  currency: 'USD',\n  unified_id: \"123456\"\
+    ,\n  cartDetails: [\n   { productId: 'A123', \n     quantity: 5,\n     price:\
+    \ 999\n   }\n ]\n};\n\nconst expected_params = {\n  notify: 'ecevent',\n  id:\
+    \ '1',\n  name: 'PURCHASE',\n  currency: 'USD',\n  cartDetails: [\n   { productId:\
+    \ 'A123', \n     quantity: 5,\n     price: 999\n   }\n ],\n  additionalInfo: {custType:\
+    \ '1', unified_id: \"123456\"}\n};\n\nmock('createQueue', (name) => {\n  if (name\
+    \ === '_tfa') {\n    return function(item) {\n      assertThat(item).isEqualTo(expected_params);\n\
     \    };\n  } \n});\n\nmock('copyFromWindow', (name) => {\n  assertThat(name).isEqualTo('__tfa_pixel_init');\n\
     \  return [];\n});\n\n\n// Call runCode to run the template's code.\nrunCode(mockData);\n\
     \n// Verify that the tag finished successfully.\nassertApi('injectScript').wasCalled();\n\
