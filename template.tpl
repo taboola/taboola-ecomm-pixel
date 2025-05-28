@@ -12,7 +12,6 @@ ___INFO___
   "type": "TAG",
   "id": "cvt_temp_public_id",
   "version": 1,
-  "securityGroups": [],
   "displayName": "E-Commerce Taboola pixel",
   "brand": {
     "id": "brand_dummy",
@@ -27,7 +26,8 @@ ___INFO___
   ],
   "containerContexts": [
     "WEB"
-  ]
+  ],
+  "securityGroups": []
 }
 
 
@@ -375,6 +375,12 @@ ___TEMPLATE_PARAMETERS___
     "name": "unified_id",
     "displayName": "Hashed email",
     "simpleValueType": true
+  },
+  {
+    "type": "TEXT",
+    "name": "email",
+    "displayName": "non hashed email",
+    "simpleValueType": true
   }
 ]
 
@@ -390,21 +396,38 @@ const encodeUriComponent = require('encodeUriComponent');
 const copyFromDataLayer = require('copyFromDataLayer');
 const getType = require('getType');
 const Object = require('Object');
+const sha256 = require('sha256');
 
-// Generate the global and local variables
+
+// Generate the global and local variables2
 const initPixelPush = createQueue('__tfa_pixel_init');
 const initPixel = copyFromWindow('__tfa_pixel_init');
 const _tfa = createQueue('_tfa');
 const accountId = data.accountId;
 
-function getAdditionalInfo() {
+function hashEmail(email, additionalInfo, sendEvent) {
+   
+   sha256(email, (digest) => {
+     additionalInfo.unified_id = digest;
+        sendEvent(additionalInfo);
+    }, (error)=>{
+        additionalInfo.emailHashFailed = "true";
+        sendEvent(additionalInfo);
+    }, {outputEncoding: 'hex'});
+}
+
+function getAdditionalInfo(sendEvent) {
   let additionalInfo = {};
   const ecomm = copyFromDataLayer('ecommerce') || {};
   if (ecomm.custType) additionalInfo.custType = ecomm.custType;
   if (data.custType) additionalInfo.custType = data.custType;
   if (data.unified_id) additionalInfo.unified_id = data.unified_id;
-  if (Object.keys(additionalInfo).length) return additionalInfo;
-  return null;
+  if (data.email) {
+      hashEmail(data.email, additionalInfo, sendEvent);
+  } else {
+      if (!Object.keys(additionalInfo).length) additionalInfo = null; 
+      sendEvent(additionalInfo);
+  }
 }
 
 // Handle base pixel - page view event
@@ -416,9 +439,10 @@ if (data.eventType === 'PAGE_VIEW') {
       id: accountId,
       name: 'page_view'
     };
-    const additionalInfo = getAdditionalInfo();
-    if (additionalInfo) pvParams.additionalInfo = additionalInfo;
-    _tfa(pvParams);
+    getAdditionalInfo((additionalInfo) => {
+        if (additionalInfo) pvParams.additionalInfo = additionalInfo;
+        _tfa(pvParams);
+    });
     initPixelPush(accountId);
   }
 }
@@ -429,7 +453,6 @@ else {
     id: accountId,
     name:data.eventType || data.eventType_enhanced,
   };
-  const additionalInfo = getAdditionalInfo();
 
   const mapProducts = products => {
     return products.map(i => {
@@ -495,10 +518,12 @@ else {
     if (data.cartDetails) params.cartDetails = data.cartDetails;
     if (data.value) params.value = data.value;
   }
-  if (additionalInfo) {
-        params.additionalInfo = additionalInfo;
-    }
-  _tfa(params);
+  getAdditionalInfo((additionalInfo) => {
+      if (additionalInfo) {
+          params.additionalInfo = additionalInfo;
+      }
+      _tfa(params);
+  });
 }
 
 // Load the Taboola script if not already loaded
@@ -748,9 +773,9 @@ scenarios:
     \ === '__tfa_pixel_init') {\n    return function(item) {\n      assertThat(item).isEqualTo(expected_params.id);\n\
     \    };\n  }\n  if (name === '_tfa') {\n    return function(item) {\n      assertThat(item).isEqualTo(expected_params);\n\
     \    };\n  } \n});\n\nmock('copyFromWindow', (name) => {\n  assertThat(name).isEqualTo('__tfa_pixel_init');\n\
-    \  return [];\n});\n\n\n// Call runCode to run the template's code.\nrunCode(mockData);\n\
-    \n// Verify that the tag finished successfully.\nassertApi('injectScript').wasCalled();\n\
-    \n\n"
+    \  return [];\n});\n\nmock('sha256', (name, callback) => {callback(name + '_hashed');});\n\
+    // Call runCode to run the template's code.\nrunCode(mockData);\n\n// Verify that\
+    \ the tag finished successfully.\nassertApi('injectScript').wasCalled();\n\n\n"
 - name: non-enhanced purchase
   code: "const mockData = {\n  enhancedEcomm: false,\n  eventType: 'PURCHASE',\n \
     \ accountId: '1',\n  custType: '1',\n  currency: 'USD',\n  cartDetails: [\n  \
@@ -760,8 +785,9 @@ scenarios:
     \ 5,\n     price: 999\n   }\n ],\n  additionalInfo: {custType: '1'}\n};\n\nmock('createQueue',\
     \ (name) => {\n  if (name === '_tfa') {\n    return function(item) {\n      assertThat(item).isEqualTo(expected_params);\n\
     \    };\n  } \n});\n\nmock('copyFromWindow', (name) => {\n  assertThat(name).isEqualTo('__tfa_pixel_init');\n\
-    \  return [];\n});\n\n\n// Call runCode to run the template's code.\nrunCode(mockData);\n\
-    \n// Verify that the tag finished successfully.\nassertApi('injectScript').wasCalled();\n\
+    \  return [];\n});\nmock('sha256', (name, callback) => {callback(name + '_hashed');});\n\
+    \n\n// Call runCode to run the template's code.\nrunCode(mockData);\n\n// Verify\
+    \ that the tag finished successfully.\nassertApi('injectScript').wasCalled();\n\
     \n\n"
 - name: enhanced purchase
   code: "const mockData = {\n  enhancedEcomm: true,\n  eventType_enhanced: 'PURCHASE',\n\
@@ -774,9 +800,9 @@ scenarios:
     \  orderId: '1111',\n  currency: 'USD',\n  value: 555,\n  cartDetails: [\n   {\
     \ productId: 'A123', \n     quantity: 5,\n     price: 999\n   }\n ]\n};\n\nmock('createQueue',\
     \ (name) => {\n  if (name === '_tfa') {\n    return function(item) {\n      assertThat(item).isEqualTo(expected_params);\n\
-    \    };\n  } \n});\n\n// Call runCode to run the template's code.\nrunCode(mockData);\n\
-    \n// Verify that the tag finished successfully.\nassertApi('injectScript').wasCalled();\n\
-    \n\n"
+    \    };\n  } \n});\n\nmock('sha256', (name, callback) => {callback(name + '_hashed');});\n\
+    // Call runCode to run the template's code.\nrunCode(mockData);\n\n// Verify that\
+    \ the tag finished successfully.\nassertApi('injectScript').wasCalled();\n\n\n"
 - name: enhanced checkout
   code: "const mockData = {\n  enhancedEcomm: true,\n  eventType_enhanced: 'CHECKOUT',\n\
     \  accountId: '1'\n};\n\nconst dataLayer = {\n      checkout: {\n         actionField:\
@@ -787,8 +813,9 @@ scenarios:
     });\n\nconst expected_params = {\n  notify: 'ecevent',\n  id: '1',\n  name: 'CHECKOUT',\n\
     \  productIds: ['A123']\n};\n\nmock('createQueue', (name) => {\n  if (name ===\
     \ '_tfa') {\n    return function(item) {\n      assertThat(item).isEqualTo(expected_params);\n\
-    \    };\n  } \n});\n\n// Call runCode to run the template's code.\nrunCode(mockData);\n\
-    \n// Verify that the tag finished successfully.\nassertApi('injectScript').wasCalled();\n\
+    \    };\n  } \n});\nmock('sha256', (name, callback) => {callback(name + '_hashed');});\n\
+    \n// Call runCode to run the template's code.\nrunCode(mockData);\n\n// Verify\
+    \ that the tag finished successfully.\nassertApi('injectScript').wasCalled();\n\
     \n\n"
 - name: enhanced checkout - multiple
   code: "const mockData = {\n  enhancedEcomm: true,\n  eventType_enhanced: 'CHECKOUT',\n\
@@ -800,8 +827,9 @@ scenarios:
     \ 'B123', \n            price: 999,\n            quantity: 5\n        }]\n   \
     \    } \n  };\nmock('copyFromDataLayer', (key) => {\n  return dataLayer;\n});\n\
     \nconst expected_params = {\n  notify: 'ecevent',\n  id: '1',\n  name: 'CHECKOUT',\n\
-    \  productIds: ['A123', 'B123']\n};\n\nmock('createQueue', (name) => {\n  if (name\
-    \ === '_tfa') {\n    return function(item) {\n      assertThat(item).isEqualTo(expected_params);\n\
+    \  productIds: ['A123', 'B123']\n};\nmock('sha256', (name, callback) => {callback(name\
+    \ + '_hashed');});\nmock('createQueue', (name) => {\n  if (name === '_tfa') {\n\
+    \    return function(item) {\n      assertThat(item).isEqualTo(expected_params);\n\
     \    };\n  } \n});\n\n// Call runCode to run the template's code.\nrunCode(mockData);\n\
     \n// Verify that the tag finished successfully.\nassertApi('injectScript').wasCalled();\n\
     \n\n"
@@ -810,9 +838,10 @@ scenarios:
     \  accountId: '1'\n};\n\nconst dataLayer = {\n      checkout: {\n         actionField:\
     \ {step: 2, \n                        option: 'MasterCard' \n                \
     \    }\n       } \n  };\nmock('copyFromDataLayer', (key) => {\n  return dataLayer;\n\
-    });\n\n// Call runCode to run the template's code.\nrunCode(mockData);\n\n// Verify\
-    \ that the tag finished successfully.\nassertApi('injectScript').wasNotCalled();\n\
-    \n\n"
+    });\n\nmock('sha256', (name, callback) => {callback(name + '_hashed');});\n//\
+    \ Call runCode to run the template's code.\nrunCode(mockData);\n\n// Verify that\
+    \ the tag finished successfully.\nassertApi('injectScript').wasNotCalled();\n\n\
+    \n"
 - name: enhanced add to cart
   code: "const mockData = {\n  enhancedEcomm: true,\n  eventType_enhanced: 'ADD_TO_CART',\n\
     \  accountId: '1'\n};\n\nconst dataLayer = {\n      add: {\n         actionField:\
@@ -824,8 +853,9 @@ scenarios:
     \ dataLayer;\n});\n\nconst expected_params = {\n  notify: 'ecevent',\n  id: '1',\n\
     \  name: 'ADD_TO_CART',\n  productIds: ['A123', 'B123']\n};\n\nmock('createQueue',\
     \ (name) => {\n  if (name === '_tfa') {\n    return function(item) {\n      assertThat(item).isEqualTo(expected_params);\n\
-    \    };\n  } \n});\n\n// Call runCode to run the template's code.\nrunCode(mockData);\n\
-    \n// Verify that the tag finished successfully.\nassertApi('injectScript').wasCalled();\n\
+    \    };\n  } \n});\nmock('sha256', (name, callback) => {callback(name + '_hashed');});\n\
+    \n// Call runCode to run the template's code.\nrunCode(mockData);\n\n// Verify\
+    \ that the tag finished successfully.\nassertApi('injectScript').wasCalled();\n\
     \n\n"
 - name: enhanced product view
   code: "const mockData = {\n  enhancedEcomm: true,\n  eventType_enhanced: 'PRODUCT_VIEW',\n\
@@ -836,8 +866,9 @@ scenarios:
     \ dataLayer;\n});\n\nconst expected_params = {\n  notify: 'ecevent',\n  id: '1',\n\
     \  name: 'PRODUCT_VIEW',\n  productIds: ['A123']\n};\n\nmock('createQueue', (name)\
     \ => {\n  if (name === '_tfa') {\n    return function(item) {\n      assertThat(item).isEqualTo(expected_params);\n\
-    \    };\n  } \n});\n\n// Call runCode to run the template's code.\nrunCode(mockData);\n\
-    \n// Verify that the tag finished successfully.\nassertApi('injectScript').wasCalled();\n\
+    \    };\n  } \n});\n\nmock('sha256', (name, callback) => {callback(name + '_hashed');});\n\
+    \n// Call runCode to run the template's code.\nrunCode(mockData);\n\n// Verify\
+    \ that the tag finished successfully.\nassertApi('injectScript').wasCalled();\n\
     \n\n"
 - name: enhanced category view
   code: "const mockData = {\n  enhancedEcomm: true,\n  eventType_enhanced: 'CATEGORY_VIEW',\n\
@@ -848,9 +879,10 @@ scenarios:
     });\n\nconst expected_params = {\n  notify: 'ecevent',\n  id: '1',\n  name: 'CATEGORY_VIEW',\n\
     \  productIds: ['A123'],\n  category: 'taboola category',\n  categoryId: 123\n\
     };\n\nmock('createQueue', (name) => {\n  if (name === '_tfa') {\n    return function(item)\
-    \ {\n      assertThat(item).isEqualTo(expected_params);\n    };\n  } \n});\n\n\
-    // Call runCode to run the template's code.\nrunCode(mockData);\n\n// Verify that\
-    \ the tag finished successfully.\nassertApi('injectScript').wasCalled();\n\n\n"
+    \ {\n      assertThat(item).isEqualTo(expected_params);\n    };\n  } \n});\nmock('sha256',\
+    \ (name, callback) => {callback(name + '_hashed');});\n\n// Call runCode to run\
+    \ the template's code.\nrunCode(mockData);\n\n// Verify that the tag finished\
+    \ successfully.\nassertApi('injectScript').wasCalled();\n\n\n"
 - name: enhanced purchase missing mandatory fields
   code: "const mockData = {\n  enhancedEcomm: true,\n  eventType_enhanced: 'PURCHASE',\n\
     \  accountId: '1'\n};\n\nconst dataLayer = {\n       currencyCode: null,\n   \
@@ -859,8 +891,9 @@ scenarios:
     \ (key) => {\n  return dataLayer;\n});\n\nconst expected_params = {\n  notify:\
     \ 'ecevent',\n  id: '1',\n  name: 'PURCHASE',\n  currency: 'USD',\n  value: 555,\n\
     \  cartDetails: [\n   { productId: 'A123', \n     quantity: 5,\n     price: 999\n\
-    \   }\n ]\n};\n\n// Call runCode to run the template's code.\nrunCode(mockData);\n\
-    \n// Verify that the tag finished successfully.\nassertApi('logToConsole').wasCalled(4);"
+    \   }\n ]\n};\nmock('sha256', (name, callback) => {callback(name + '_hashed');});\n\
+    \n// Call runCode to run the template's code.\nrunCode(mockData);\n\n// Verify\
+    \ that the tag finished successfully.\nassertApi('logToConsole').wasCalled(4);"
 - name: enhanced category view missing mandatory fields
   code: "const mockData = {\n  enhancedEcomm: true,\n  eventType_enhanced: 'CATEGORY_VIEW',\n\
     \  accountId: '1',\n  categoryIdEnh: 123\n};\n\nconst dataLayer = {\n      impressions:\
@@ -869,23 +902,25 @@ scenarios:
     \ (key) => {\n  return dataLayer;\n});\n\nconst expected_params = {\n  notify:\
     \ 'ecevent',\n  id: '1',\n  name: 'PURCHASE',\n  currency: 'USD',\n  value: 555,\n\
     \  cartDetails: [\n   { productId: 'A123', \n     quantity: 5,\n     price: 999\n\
-    \   }\n ]\n};\n\n// Call runCode to run the template's code.\nrunCode(mockData);\n\
-    \n// Verify that the tag finished successfully.\nassertApi('logToConsole').wasCalled(1);"
+    \   }\n ]\n};\nmock('sha256', (name, callback) => {callback(name + '_hashed');});\n\
+    \n// Call runCode to run the template's code.\nrunCode(mockData);\n\n// Verify\
+    \ that the tag finished successfully.\nassertApi('logToConsole').wasCalled(1);"
 - name: enhanced checkout missing mandatory fields
   code: "const mockData = {\n  enhancedEcomm: true,\n  eventType_enhanced: 'CHECKOUT',\n\
     \  accountId: '1'\n};\n\nconst dataLayer = {\n      checkout: {\n         actionField:\
     \ {step: 1, //step number\n                        option: 'DHL' //step value\n\
     \                    },\n         products: []\n       } \n  };\nmock('copyFromDataLayer',\
-    \ (key) => {\n  return dataLayer;\n});\n\n// Call runCode to run the template's\
-    \ code.\nrunCode(mockData);\n\n// Verify that the tag finished successfully.\n\
-    assertApi('logToConsole').wasCalled(1);"
+    \ (key) => {\n  return dataLayer;\n});\nmock('sha256', (name, callback) => {callback(name\
+    \ + '_hashed');});\n\n// Call runCode to run the template's code.\nrunCode(mockData);\n\
+    \n// Verify that the tag finished successfully.\nassertApi('logToConsole').wasCalled(1);"
 - name: enhanced add to cart missing mandatory fields
   code: "const mockData = {\n  enhancedEcomm: true,\n  eventType_enhanced: 'ADD_TO_CART',\n\
     \  accountId: '1'\n};\n\nconst dataLayer = {\n      add: {\n         actionField:\
     \ {\n          list: 'Shopping cart'\n          },\n         products: []\n  \
     \     } \n  };\nmock('copyFromDataLayer', (key) => {\n  return dataLayer;\n});\n\
-    \n// Call runCode to run the template's code.\nrunCode(mockData);\n\n// Verify\
-    \ that the tag finished successfully.\nassertApi('logToConsole').wasCalled(1);"
+    mock('sha256', (name, callback) => {callback(name + '_hashed');});\n\n// Call\
+    \ runCode to run the template's code.\nrunCode(mockData);\n\n// Verify that the\
+    \ tag finished successfully.\nassertApi('logToConsole').wasCalled(1);"
 - name: base pixel -page view with custType
   code: "const mockData = {\n  enhancedEcomm: false,\n  eventType: 'PAGE_VIEW',\n\
     \  accountId: '1',\n  custType: '1'\n};\n\nconst expected_params = {\n  notify:\
@@ -894,8 +929,9 @@ scenarios:
     \    return function(item) {\n      assertThat(item).isEqualTo(expected_params.id);\n\
     \    };\n  }\n  if (name === '_tfa') {\n    return function(item) {\n      assertThat(item).isEqualTo(expected_params);\n\
     \    };\n  } \n});\n\nmock('copyFromWindow', (name) => {\n  assertThat(name).isEqualTo('__tfa_pixel_init');\n\
-    \  return [];\n});\n\n\n// Call runCode to run the template's code.\nrunCode(mockData);\n\
-    \n// Verify that the tag finished successfully.\nassertApi('injectScript').wasCalled();\n\
+    \  return [];\n});\nmock('sha256', (name, callback) => {callback(name + '_hashed');});\n\
+    \n// Call runCode to run the template's code.\nrunCode(mockData);\n\n// Verify\
+    \ that the tag finished successfully.\nassertApi('injectScript').wasCalled();\n\
     \n\n"
 - name: base pixel page view with unified_id
   code: "const mockData = {\n  enhancedEcomm: false,\n  eventType: 'PAGE_VIEW',\n\
@@ -905,8 +941,9 @@ scenarios:
     \ {\n    return function(item) {\n      assertThat(item).isEqualTo(expected_params.id);\n\
     \    };\n  }\n  if (name === '_tfa') {\n    return function(item) {\n      assertThat(item).isEqualTo(expected_params);\n\
     \    };\n  } \n});\n\nmock('copyFromWindow', (name) => {\n  assertThat(name).isEqualTo('__tfa_pixel_init');\n\
-    \  return [];\n});\n\n\n// Call runCode to run the template's code.\nrunCode(mockData);\n\
-    \n// Verify that the tag finished successfully.\nassertApi('injectScript').wasCalled();\n\
+    \  return [];\n});\nmock('sha256', (name, callback) => {callback(name + '_hashed');});\n\
+    \n// Call runCode to run the template's code.\nrunCode(mockData);\n\n// Verify\
+    \ that the tag finished successfully.\nassertApi('injectScript').wasCalled();\n\
     \n\n"
 - name: purchase with unified_id
   code: "const mockData = {\n  enhancedEcomm: false,\n  eventType: 'PURCHASE',\n \
@@ -918,8 +955,23 @@ scenarios:
     \ '1', unified_id: \"123456\"}\n};\n\nmock('createQueue', (name) => {\n  if (name\
     \ === '_tfa') {\n    return function(item) {\n      assertThat(item).isEqualTo(expected_params);\n\
     \    };\n  } \n});\n\nmock('copyFromWindow', (name) => {\n  assertThat(name).isEqualTo('__tfa_pixel_init');\n\
-    \  return [];\n});\n\n\n// Call runCode to run the template's code.\nrunCode(mockData);\n\
-    \n// Verify that the tag finished successfully.\nassertApi('injectScript').wasCalled();\n\
+    \  return [];\n});\nmock('sha256', (name, callback) => {callback(name + '_hashed');});\n\
+    \n// Call runCode to run the template's code.\nrunCode(mockData);\n\n// Verify\
+    \ that the tag finished successfully.\nassertApi('injectScript').wasCalled();\n\
+    \n\n"
+- name: Purchase with email no unified_id
+  code: "const mockData = {\n  enhancedEcomm: false,\n  eventType: 'PURCHASE',\n \
+    \ accountId: '1',\n  custType: '1',\n  currency: 'USD',\n  email: '123456789',\n\
+    \  cartDetails: [\n   { productId: 'A123', \n     quantity: 5,\n     price: 999\n\
+    \   }\n ]\n};\n\nconst expected_params = {\n  notify: 'ecevent',\n  id: '1',\n\
+    \  name: 'PURCHASE',\n  currency: 'USD',\n  cartDetails: [\n   { productId: 'A123',\
+    \ \n     quantity: 5,\n     price: 999\n   }\n ],\n  additionalInfo: {custType:\
+    \ '1', unified_id: \"123456789_hashed\"}\n};\n\nmock('createQueue', (name) =>\
+    \ {\n    return function(item) {\n      assertThat(item).isEqualTo(expected_params);\n\
+    \    }; \n});\n\nmock('copyFromWindow', (name) => {\n  assertThat(name).isEqualTo('__tfa_pixel_init');\n\
+    \  return [];\n});\n\nmock('sha256', (name, callback) => {callback(name + '_hashed');});\n\
+    \n// Call runCode to run the template's code.\nrunCode(mockData);\n\n// Verify\
+    \ that the tag finished successfully.\nassertApi('injectScript').wasCalled();\n\
     \n\n"
 
 
