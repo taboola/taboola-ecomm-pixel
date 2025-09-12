@@ -381,6 +381,13 @@ ___TEMPLATE_PARAMETERS___
     "name": "email",
     "displayName": "non hashed email",
     "simpleValueType": true
+  },
+  {
+    "type": "CHECKBOX",
+    "name": "useGoogleAnalytics4",
+    "checkboxText": "Use Google Analytics 4 data layer structure",
+    "simpleValueType": true,
+    "help": "Select this option if you use the Google Analytics 4 (GA4) data layer structure."
   }
 ]
 
@@ -472,39 +479,54 @@ else {
 
   if (data.enhancedEcomm){
     const ecomm = copyFromDataLayer('ecommerce') || {}; 
-  
-    verifyMandatoryElements(data.eventType_enhanced, log, ecomm);
-  
-    if (data.eventType_enhanced === 'ADD_TO_CART' && ecomm.hasOwnProperty('add') && getType(ecomm.add.products) === 'array'){
-      params.productIds = mapProductIds(ecomm.add.products);
-    }
-  
-    if (data.eventType_enhanced === 'REMOVE_FROM_CART' && ecomm.hasOwnProperty('remove') && getType(ecomm.remove.products) === 'array') {
-       params.productIds = mapProductIds(ecomm.remove.products);   
-    }
-  
-    if(data.eventType_enhanced === 'PRODUCT_VIEW' && ecomm.hasOwnProperty('detail') && getType(ecomm.detail.products) === 'array') {
-      params.productIds = [ecomm.detail.products[0].id];
-    }
-  
-    if (data.eventType_enhanced === 'PURCHASE' && ecomm.hasOwnProperty('purchase')) {
-      params.cartDetails = mapProducts(ecomm.purchase.products);
-      params.currency = ecomm.currencyCode;
-      params.value = ecomm.purchase.actionField.revenue;
-      params.orderId = ecomm.purchase.actionField.id;
-    }
-  
-    if (data.eventType_enhanced === 'CHECKOUT' && ecomm.hasOwnProperty('checkout')) {
-      if(!ecomm.checkout.products) {
-       return; // when the checkout step doesn't have products data
+    
+    if (data.useGoogleAnalytics4) {
+      const hasItems = getType(ecomm.items) === 'array';
+      
+      if (hasItems && data.eventType_enhanced !== 'HOME_PAGE_VISIT' && data.eventType_enhanced !== 'PURCHASE') {
+        params.productIds = ecomm.items.map(item => item.item_id);
       }
-      params.productIds = mapProductIds(ecomm.checkout.products);   
-    } 
+      
+      if (hasItems && data.eventType_enhanced === 'PURCHASE') {
+        params.cartDetails = ecomm.items.map(item => ({ productId: item.item_id, quantity: item.quantity, price: item.price }));
+        params.currency = ecomm.currency;
+        params.value = ecomm.value;
+        params.orderId = ecomm.transaction_id;
+      }
+    } else {
+      verifyMandatoryElements(data.eventType_enhanced, log, ecomm);
   
-    if (data.eventType_enhanced === 'CATEGORY_VIEW' && ecomm.hasOwnProperty('impressions')) {
-      params.productIds = mapProductIds(ecomm.impressions.slice(0,5));  
-      params.category = ecomm.impressions[0].category;   
-      if (data.categoryIdEnh) params.categoryId = data.categoryIdEnh;
+      if (data.eventType_enhanced === 'ADD_TO_CART' && ecomm.hasOwnProperty('add') && getType(ecomm.add.products) === 'array'){
+        params.productIds = mapProductIds(ecomm.add.products);
+      }
+  
+      if (data.eventType_enhanced === 'REMOVE_FROM_CART' && ecomm.hasOwnProperty('remove') && getType(ecomm.remove.products) === 'array') {
+         params.productIds = mapProductIds(ecomm.remove.products);   
+      }
+  
+      if(data.eventType_enhanced === 'PRODUCT_VIEW' && ecomm.hasOwnProperty('detail') && getType(ecomm.detail.products) === 'array') {
+        params.productIds = [ecomm.detail.products[0].id];
+      }
+  
+      if (data.eventType_enhanced === 'PURCHASE' && ecomm.hasOwnProperty('purchase')) {
+        params.cartDetails = mapProducts(ecomm.purchase.products);
+        params.currency = ecomm.currencyCode;
+        params.value = ecomm.purchase.actionField.revenue;
+        params.orderId = ecomm.purchase.actionField.id;
+      }
+  
+      if (data.eventType_enhanced === 'CHECKOUT' && ecomm.hasOwnProperty('checkout')) {
+        if(!ecomm.checkout.products) {
+         return; // when the checkout step doesn't have products data
+        }
+        params.productIds = mapProductIds(ecomm.checkout.products);   
+      } 
+  
+      if (data.eventType_enhanced === 'CATEGORY_VIEW' && ecomm.hasOwnProperty('impressions')) {
+        params.productIds = mapProductIds(ecomm.impressions.slice(0,5));  
+        params.category = ecomm.impressions[0].category;   
+        if (data.categoryIdEnh) params.categoryId = data.categoryIdEnh;
+      }
     }
   }
   else {
@@ -973,6 +995,107 @@ scenarios:
     \n// Call runCode to run the template's code.\nrunCode(mockData);\n\n// Verify\
     \ that the tag finished successfully.\nassertApi('injectScript').wasCalled();\n\
     \n\n"
+- name: ga4 add to cart
+  code: |-
+    const mockData = {
+      enhancedEcomm: true,
+      useGoogleAnalytics4: true,
+      eventType_enhanced: 'ADD_TO_CART',
+      accountId: '1'
+    };
+
+    const dataLayer = {
+      items: [
+        {
+          item_id: '123'
+        },
+        {
+          item_id: '345'
+        }
+      ]
+    };
+
+    mockDataLayer(dataLayer);
+
+    const expectedParams = {
+      notify: 'ecevent',
+      name: 'ADD_TO_CART',
+      id: '1',
+      productIds: ['123', '345']
+    };
+
+    mockCreateQueue(expectedParams);
+
+    // Call runCode to run the template's code.
+    runCode(mockData);
+
+    // Verify that the tag finished successfully.
+    assertApi('injectScript').wasCalled();
+- name: ga4 purchase
+  code: |-
+    const mockData = {
+      enhancedEcomm: true,
+      useGoogleAnalytics4: true,
+      eventType_enhanced: 'PURCHASE',
+      accountId: '1'
+    };
+
+    const dataLayer = {
+      transaction_id: '12',
+      currency: 'USD',
+      value: 25,
+      items: [
+        {
+          item_id: '123',
+          quantity: 2,
+          price: 10
+        },
+        {
+          item_id: '345',
+          quantity: 1,
+          price: 5
+        }
+      ]
+    };
+
+    mockDataLayer(dataLayer);
+
+    const expectedParams = {
+      notify: 'ecevent',
+      name: 'PURCHASE',
+      id: '1',
+      cartDetails: [
+        {
+          productId: '123',
+          quantity: 2,
+          price: 10
+        },
+        {
+          productId: '345',
+          quantity: 1,
+          price: 5
+        }
+      ],
+      currency: 'USD',
+      value: 25,
+      orderId: '12'
+    };
+
+    mockCreateQueue(expectedParams);
+
+    // Call runCode to run the template's code.
+    runCode(mockData);
+
+    // Verify that the tag finished successfully.
+    assertApi('injectScript').wasCalled();
+setup: |-
+  const mockDataLayer = dataLayer => mock('copyFromDataLayer', _ => dataLayer);
+
+  const mockCreateQueue = expectedParams => mock('createQueue', name => {
+    if (name === '_tfa') {
+      return item => assertThat(item).isEqualTo(expectedParams);
+    }
+  });
 
 
 ___NOTES___
