@@ -65,8 +65,8 @@ ___TEMPLATE_PARAMETERS___
       },
       {
         "value": "manual",
-        "displayValue": "Configure events manually",
-        "help": "Select this if your site does not use a data layer. You will have to configure the events manually with GTM variables."
+        "displayValue": "Configure event manually",
+        "help": "Select this if your site does not use a data layer. You will have to configure the selected event manually with GTM variables."
       }
     ],
     "simpleValueType": true,
