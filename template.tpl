@@ -49,11 +49,29 @@ ___TEMPLATE_PARAMETERS___
     "help": "(Optional) Enter the Taboola Campaign ID, or IDs in case this event is relevant to more than one campaign. For any questions, please contact your Account Manager."
   },
   {
-    "type": "CHECKBOX",
-    "name": "enhancedEcomm",
-    "checkboxText": "Use Enhanced Ecommerce",
+    "type": "RADIO",
+    "name": "eventParseMode",
+    "displayName": "How to handle event data",
+    "radioItems": [
+      {
+        "value": "ga4",
+        "displayValue": "Use Google Analytics 4 data layer structure",
+        "help": "Select this if your site uses a data layer and event data is sent with the Google Analytics 4 structure."
+      },
+      {
+        "value": "ua",
+        "displayValue": "Use Universal Analytics data layer structure (Legacy)",
+        "help": "Select this if your site uses a data layer and event data is sent with the Universal Analytics structure."
+      },
+      {
+        "value": "manual",
+        "displayValue": "Configure events manually",
+        "help": "Select this if your site does not use a data layer. You will have to configure the events manually with GTM variables."
+      }
+    ],
     "simpleValueType": true,
-    "help": "Select this option if you have a Google Enhance Ecommerce data layer installed on your site. When this option is selected, the required parameters will be collected from the data layer."
+    "defaultValue": "manual",
+    "help": "Choose how event data should be received by the pixel."
   },
   {
     "type": "SELECT",
@@ -305,8 +323,8 @@ ___TEMPLATE_PARAMETERS___
     ],
     "enablingConditions": [
       {
-        "paramName": "enhancedEcomm",
-        "paramValue": false,
+        "paramName": "eventParseMode",
+        "paramValue": "manual",
         "type": "EQUALS"
       }
     ],
@@ -346,8 +364,13 @@ ___TEMPLATE_PARAMETERS___
     "simpleValueType": true,
     "enablingConditions": [
       {
-        "paramName": "enhancedEcomm",
-        "paramValue": true,
+        "paramName": "eventParseMode",
+        "paramValue": "ga4",
+        "type": "EQUALS"
+      },
+      {
+        "paramName": "eventParseMode",
+        "paramValue": "ua",
         "type": "EQUALS"
       }
     ],
@@ -381,13 +404,6 @@ ___TEMPLATE_PARAMETERS___
     "name": "email",
     "displayName": "non hashed email",
     "simpleValueType": true
-  },
-  {
-    "type": "CHECKBOX",
-    "name": "useGoogleAnalytics4",
-    "checkboxText": "Use Google Analytics 4 data layer structure",
-    "simpleValueType": true,
-    "help": "Select this option if you use the Google Analytics 4 (GA4) data layer structure."
   }
 ]
 
@@ -476,11 +492,21 @@ else {
         return i.id;
       });    
   };
-
-  if (data.enhancedEcomm){
-    const ecomm = copyFromDataLayer('ecommerce') || {}; 
+  
+  if (data.eventParseMode === "manual") {
+    if (data.productIds) params.productIds = data.productIds;
+    if (data.campaignIds) params.campaignIds = data.campaignIds;
+    if (data.currency) params.currency = data.currency;
+    if (data.orderId) params.orderId = data.orderId;
+    if (data.categoryId) params.categoryId = data.categoryId;
+    if (data.category) params.category = data.category;
+    if (data.searchTerm) params.searchTerm = data.searchTerm;
+    if (data.cartDetails) params.cartDetails = data.cartDetails;
+    if (data.value) params.value = data.value;
+  } else {
+    const ecomm = copyFromDataLayer('ecommerce') || {};
     
-    if (data.useGoogleAnalytics4) {
+    if (data.eventParseMode === "ga4") {
       const hasItems = getType(ecomm.items) === 'array';
       
       if (hasItems && data.eventType_enhanced !== 'HOME_PAGE_VISIT' && data.eventType_enhanced !== 'PURCHASE') {
@@ -493,7 +519,7 @@ else {
         params.value = ecomm.value;
         params.orderId = ecomm.transaction_id;
       }
-    } else {
+    } else if (data.eventParseMode === "ua") {
       verifyMandatoryElements(data.eventType_enhanced, log, ecomm);
   
       if (data.eventType_enhanced === 'ADD_TO_CART' && ecomm.hasOwnProperty('add') && getType(ecomm.add.products) === 'array'){
@@ -529,17 +555,7 @@ else {
       }
     }
   }
-  else {
-    if (data.productIds) params.productIds = data.productIds;
-    if (data.campaignIds) params.campaignIds = data.campaignIds;
-    if (data.currency) params.currency = data.currency;
-    if (data.orderId) params.orderId = data.orderId;
-    if (data.categoryId) params.categoryId = data.categoryId;
-    if (data.category) params.category = data.category;
-    if (data.searchTerm) params.searchTerm = data.searchTerm;
-    if (data.cartDetails) params.cartDetails = data.cartDetails;
-    if (data.value) params.value = data.value;
-  }
+
   getAdditionalInfo((additionalInfo) => {
       if (additionalInfo) {
           params.additionalInfo = additionalInfo;
@@ -799,9 +815,9 @@ scenarios:
     // Call runCode to run the template's code.\nrunCode(mockData);\n\n// Verify that\
     \ the tag finished successfully.\nassertApi('injectScript').wasCalled();\n\n\n"
 - name: non-enhanced purchase
-  code: "const mockData = {\n  enhancedEcomm: false,\n  eventType: 'PURCHASE',\n \
-    \ accountId: '1',\n  custType: '1',\n  currency: 'USD',\n  cartDetails: [\n  \
-    \ { productId: 'A123', \n     quantity: 5,\n     price: 999\n   }\n ]\n};\n\n\
+  code: "const mockData = {\n  eventParseMode: \"manual\",\n  eventType: 'PURCHASE',\n\
+    \  accountId: '1',\n  custType: '1',\n  currency: 'USD',\n  cartDetails: [\n \
+    \  { productId: 'A123', \n     quantity: 5,\n     price: 999\n   }\n ]\n};\n\n\
     const expected_params = {\n  notify: 'ecevent',\n  id: '1',\n  name: 'PURCHASE',\n\
     \  currency: 'USD',\n  cartDetails: [\n   { productId: 'A123', \n     quantity:\
     \ 5,\n     price: 999\n   }\n ],\n  additionalInfo: {custType: '1'}\n};\n\nmock('createQueue',\
@@ -812,7 +828,7 @@ scenarios:
     \ that the tag finished successfully.\nassertApi('injectScript').wasCalled();\n\
     \n\n"
 - name: enhanced purchase
-  code: "const mockData = {\n  enhancedEcomm: true,\n  eventType_enhanced: 'PURCHASE',\n\
+  code: "const mockData = {\n  eventParseMode: \"ua\",\n  eventType_enhanced: 'PURCHASE',\n\
     \  accountId: '1'\n};\n\nconst dataLayer = {\n       currencyCode: 'USD',\n  \
     \     purchase: {\n         actionField: {\n          id: '1111',\n          revenue:\
     \ 555  \n         },\n         products: [{ \n            name: 'taboola item',\
@@ -826,7 +842,7 @@ scenarios:
     // Call runCode to run the template's code.\nrunCode(mockData);\n\n// Verify that\
     \ the tag finished successfully.\nassertApi('injectScript').wasCalled();\n\n\n"
 - name: enhanced checkout
-  code: "const mockData = {\n  enhancedEcomm: true,\n  eventType_enhanced: 'CHECKOUT',\n\
+  code: "const mockData = {\n  eventParseMode: \"ua\",\n  eventType_enhanced: 'CHECKOUT',\n\
     \  accountId: '1'\n};\n\nconst dataLayer = {\n      checkout: {\n         actionField:\
     \ {step: 1, //step number\n                        option: 'DHL' //step value\n\
     \                    },\n         products: [{ \n            name: 'taboola item',\
@@ -840,7 +856,7 @@ scenarios:
     \ that the tag finished successfully.\nassertApi('injectScript').wasCalled();\n\
     \n\n"
 - name: enhanced checkout - multiple
-  code: "const mockData = {\n  enhancedEcomm: true,\n  eventType_enhanced: 'CHECKOUT',\n\
+  code: "const mockData = {\n  eventParseMode: \"ua\",\n  eventType_enhanced: 'CHECKOUT',\n\
     \  accountId: '1'\n};\n\nconst dataLayer = {\n      checkout: {\n         actionField:\
     \ {step: 1, //step number\n                        option: 'DHL' //step value\n\
     \                    },\n         products: [{ \n            name: 'taboola item',\
@@ -856,7 +872,7 @@ scenarios:
     \n// Verify that the tag finished successfully.\nassertApi('injectScript').wasCalled();\n\
     \n\n"
 - name: enhanced checkout - step 2 - ignore
-  code: "const mockData = {\n  enhancedEcomm: true,\n  eventType_enhanced: 'CHECKOUT',\n\
+  code: "const mockData = {\n  eventParseMode: \"ua\",\n  eventType_enhanced: 'CHECKOUT',\n\
     \  accountId: '1'\n};\n\nconst dataLayer = {\n      checkout: {\n         actionField:\
     \ {step: 2, \n                        option: 'MasterCard' \n                \
     \    }\n       } \n  };\nmock('copyFromDataLayer', (key) => {\n  return dataLayer;\n\
@@ -865,7 +881,7 @@ scenarios:
     \ the tag finished successfully.\nassertApi('injectScript').wasNotCalled();\n\n\
     \n"
 - name: enhanced add to cart
-  code: "const mockData = {\n  enhancedEcomm: true,\n  eventType_enhanced: 'ADD_TO_CART',\n\
+  code: "const mockData = {\n  eventParseMode: \"ua\",\n  eventType_enhanced: 'ADD_TO_CART',\n\
     \  accountId: '1'\n};\n\nconst dataLayer = {\n      add: {\n         actionField:\
     \ {\n          list: 'Shopping cart'\n          },\n         products: [{ \n \
     \           name: 'taboola item', \n            id: 'A123', \n            price:\
@@ -880,7 +896,7 @@ scenarios:
     \ that the tag finished successfully.\nassertApi('injectScript').wasCalled();\n\
     \n\n"
 - name: enhanced product view
-  code: "const mockData = {\n  enhancedEcomm: true,\n  eventType_enhanced: 'PRODUCT_VIEW',\n\
+  code: "const mockData = {\n  eventParseMode: \"ua\",\n  eventType_enhanced: 'PRODUCT_VIEW',\n\
     \  accountId: '1'\n};\n\nconst dataLayer = {\n      detail: {\n         actionField:\
     \ { list: 'Search Results' },\n         products: [{ \n            name: 'taboola\
     \ item', \n            id: 'A123', \n            price: 999,\n            quantity:\
@@ -893,7 +909,7 @@ scenarios:
     \ that the tag finished successfully.\nassertApi('injectScript').wasCalled();\n\
     \n\n"
 - name: enhanced category view
-  code: "const mockData = {\n  enhancedEcomm: true,\n  eventType_enhanced: 'CATEGORY_VIEW',\n\
+  code: "const mockData = {\n  eventParseMode: \"ua\",\n  eventType_enhanced: 'CATEGORY_VIEW',\n\
     \  accountId: '1',\n  categoryIdEnh: 123\n};\n\nconst dataLayer = {\n      impressions:\
     \ [{ \n            name: 'taboola item', \n            id: 'A123', \n        \
     \    price: 999,\n            quantity: 5,\n            category: 'taboola category'\n\
@@ -906,7 +922,7 @@ scenarios:
     \ the template's code.\nrunCode(mockData);\n\n// Verify that the tag finished\
     \ successfully.\nassertApi('injectScript').wasCalled();\n\n\n"
 - name: enhanced purchase missing mandatory fields
-  code: "const mockData = {\n  enhancedEcomm: true,\n  eventType_enhanced: 'PURCHASE',\n\
+  code: "const mockData = {\n  eventParseMode: \"ua\",\n  eventType_enhanced: 'PURCHASE',\n\
     \  accountId: '1'\n};\n\nconst dataLayer = {\n       currencyCode: null,\n   \
     \    purchase: {\n         actionField: {\n          id: undefined,\n        \
     \  revenue: null  \n         },\n         products: []\n       } \n  };\nmock('copyFromDataLayer',\
@@ -917,7 +933,7 @@ scenarios:
     \n// Call runCode to run the template's code.\nrunCode(mockData);\n\n// Verify\
     \ that the tag finished successfully.\nassertApi('logToConsole').wasCalled(4);"
 - name: enhanced category view missing mandatory fields
-  code: "const mockData = {\n  enhancedEcomm: true,\n  eventType_enhanced: 'CATEGORY_VIEW',\n\
+  code: "const mockData = {\n  eventParseMode: \"ua\",\n  eventType_enhanced: 'CATEGORY_VIEW',\n\
     \  accountId: '1',\n  categoryIdEnh: 123\n};\n\nconst dataLayer = {\n      impressions:\
     \ [{ \n            id: 'A123', \n            price: 999,\n            quantity:\
     \ 5,\n            category: null\n        }]\n  };\n\nmock('copyFromDataLayer',\
@@ -928,7 +944,7 @@ scenarios:
     \n// Call runCode to run the template's code.\nrunCode(mockData);\n\n// Verify\
     \ that the tag finished successfully.\nassertApi('logToConsole').wasCalled(1);"
 - name: enhanced checkout missing mandatory fields
-  code: "const mockData = {\n  enhancedEcomm: true,\n  eventType_enhanced: 'CHECKOUT',\n\
+  code: "const mockData = {\n  eventParseMode: \"ua\",\n  eventType_enhanced: 'CHECKOUT',\n\
     \  accountId: '1'\n};\n\nconst dataLayer = {\n      checkout: {\n         actionField:\
     \ {step: 1, //step number\n                        option: 'DHL' //step value\n\
     \                    },\n         products: []\n       } \n  };\nmock('copyFromDataLayer',\
@@ -936,7 +952,7 @@ scenarios:
     \ + '_hashed');});\n\n// Call runCode to run the template's code.\nrunCode(mockData);\n\
     \n// Verify that the tag finished successfully.\nassertApi('logToConsole').wasCalled(1);"
 - name: enhanced add to cart missing mandatory fields
-  code: "const mockData = {\n  enhancedEcomm: true,\n  eventType_enhanced: 'ADD_TO_CART',\n\
+  code: "const mockData = {\n  eventParseMode: \"ua\",\n  eventType_enhanced: 'ADD_TO_CART',\n\
     \  accountId: '1'\n};\n\nconst dataLayer = {\n      add: {\n         actionField:\
     \ {\n          list: 'Shopping cart'\n          },\n         products: []\n  \
     \     } \n  };\nmock('copyFromDataLayer', (key) => {\n  return dataLayer;\n});\n\
@@ -944,7 +960,7 @@ scenarios:
     \ runCode to run the template's code.\nrunCode(mockData);\n\n// Verify that the\
     \ tag finished successfully.\nassertApi('logToConsole').wasCalled(1);"
 - name: base pixel -page view with custType
-  code: "const mockData = {\n  enhancedEcomm: false,\n  eventType: 'PAGE_VIEW',\n\
+  code: "const mockData = {\n  eventParseMode: \"manual\",\n  eventType: 'PAGE_VIEW',\n\
     \  accountId: '1',\n  custType: '1'\n};\n\nconst expected_params = {\n  notify:\
     \ 'event',\n  id: '1',\n  name: 'page_view',\n  additionalInfo: {custType: '1'}\n\
     };\n\nmock('createQueue', (name) => {\n  if (name === '__tfa_pixel_init') {\n\
@@ -956,7 +972,7 @@ scenarios:
     \ that the tag finished successfully.\nassertApi('injectScript').wasCalled();\n\
     \n\n"
 - name: base pixel page view with unified_id
-  code: "const mockData = {\n  enhancedEcomm: false,\n  eventType: 'PAGE_VIEW',\n\
+  code: "const mockData = {\n  eventParseMode: \"manual\",\n  eventType: 'PAGE_VIEW',\n\
     \  accountId: '1',\n  unified_id: '123456'\n};\n\nconst expected_params = {\n\
     \  notify: 'event',\n  id: '1',\n  name: 'page_view',\n  additionalInfo:{unified_id:\
     \ '123456'}\n};\n\nmock('createQueue', (name) => {\n  if (name === '__tfa_pixel_init')\
@@ -968,8 +984,8 @@ scenarios:
     \ that the tag finished successfully.\nassertApi('injectScript').wasCalled();\n\
     \n\n"
 - name: purchase with unified_id
-  code: "const mockData = {\n  enhancedEcomm: false,\n  eventType: 'PURCHASE',\n \
-    \ accountId: '1',\n  custType: '1',\n  currency: 'USD',\n  unified_id: \"123456\"\
+  code: "const mockData = {\n  eventParseMode: \"manual\",\n  eventType: 'PURCHASE',\n\
+    \  accountId: '1',\n  custType: '1',\n  currency: 'USD',\n  unified_id: \"123456\"\
     ,\n  cartDetails: [\n   { productId: 'A123', \n     quantity: 5,\n     price:\
     \ 999\n   }\n ]\n};\n\nconst expected_params = {\n  notify: 'ecevent',\n  id:\
     \ '1',\n  name: 'PURCHASE',\n  currency: 'USD',\n  cartDetails: [\n   { productId:\
@@ -982,8 +998,8 @@ scenarios:
     \ that the tag finished successfully.\nassertApi('injectScript').wasCalled();\n\
     \n\n"
 - name: Purchase with email no unified_id
-  code: "const mockData = {\n  enhancedEcomm: false,\n  eventType: 'PURCHASE',\n \
-    \ accountId: '1',\n  custType: '1',\n  currency: 'USD',\n  email: '123456789',\n\
+  code: "const mockData = {\n  eventParseMode: \"manual\",\n  eventType: 'PURCHASE',\n\
+    \  accountId: '1',\n  custType: '1',\n  currency: 'USD',\n  email: '123456789',\n\
     \  cartDetails: [\n   { productId: 'A123', \n     quantity: 5,\n     price: 999\n\
     \   }\n ]\n};\n\nconst expected_params = {\n  notify: 'ecevent',\n  id: '1',\n\
     \  name: 'PURCHASE',\n  currency: 'USD',\n  cartDetails: [\n   { productId: 'A123',\
@@ -998,8 +1014,7 @@ scenarios:
 - name: ga4 add to cart
   code: |-
     const mockData = {
-      enhancedEcomm: true,
-      useGoogleAnalytics4: true,
+      eventParseMode: "ga4",
       eventType_enhanced: 'ADD_TO_CART',
       accountId: '1'
     };
@@ -1034,8 +1049,7 @@ scenarios:
 - name: ga4 purchase
   code: |-
     const mockData = {
-      enhancedEcomm: true,
-      useGoogleAnalytics4: true,
+      eventParseMode: "ga4",
       eventType_enhanced: 'PURCHASE',
       accountId: '1'
     };
