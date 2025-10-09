@@ -1,6 +1,8 @@
 homepage: "www.taboola.com",
 documentation: "https://help.taboola.com/hc/en-us/articles/360033655813-Implementing-the-Taboola-Pixel-Template-for-Google-Tag-Manager",
 versions:
+  - sha: 797d4e2410229d2fc2843eebbd2a8d3b5d403fa3
+    changeNotes: Support for ga4 data layer, fix legacy integrations
   - sha: 1b1b879ed1d7f73ca8227357802e70f9ca0da997
     changeNotes: Support for ga4 data layer
   - sha: ea812c9dc032436b0f5164c3e6d293309ba74bce
