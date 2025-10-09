@@ -326,6 +326,11 @@ ___TEMPLATE_PARAMETERS___
         "paramName": "eventParseMode",
         "paramValue": "manual",
         "type": "EQUALS"
+      },
+      {
+        "paramName": "eventParseMode",
+        "paramValue": "",
+        "type": "NOT_PRESENT"
       }
     ],
     "help": "Choose the event type. NOTE that you shouldn\u0027t choose \"Base Pixel - Page View\" in case that you have already implemented on your website \"Taboola pixel\" template with \"Base Pixel\" event."
@@ -372,6 +377,11 @@ ___TEMPLATE_PARAMETERS___
         "paramName": "eventParseMode",
         "paramValue": "ua",
         "type": "EQUALS"
+      },
+      {
+        "paramName": "eventParseMode",
+        "paramValue": "",
+        "type": "NOT_PRESENT"
       }
     ],
     "subParams": [
@@ -428,72 +438,39 @@ const initPixel = copyFromWindow('__tfa_pixel_init');
 const _tfa = createQueue('_tfa');
 const accountId = data.accountId;
 
-function hashEmail(email, additionalInfo, sendEvent) {
-   
+function hashEmail(email, additionalInfo, params) {
    sha256(email, (digest) => {
      additionalInfo.unified_id = digest;
-        sendEvent(additionalInfo);
+        sendEvent(params, additionalInfo);
     }, (error)=>{
         additionalInfo.emailHashFailed = "true";
-        sendEvent(additionalInfo);
+        sendEvent(params, additionalInfo);
     }, {outputEncoding: 'hex'});
 }
 
-function getAdditionalInfo(sendEvent) {
+function sendEvent(params, additionalInfo) {
+    if (additionalInfo) {
+        params.additionalInfo = additionalInfo;
+    }
+    _tfa(params);
+}
+
+function enrichWithAdditionalInfoAndSend(params) {
   let additionalInfo = {};
   const ecomm = copyFromDataLayer('ecommerce') || {};
   if (ecomm.custType) additionalInfo.custType = ecomm.custType;
   if (data.custType) additionalInfo.custType = data.custType;
   if (data.unified_id) additionalInfo.unified_id = data.unified_id;
   if (data.email) {
-      hashEmail(data.email, additionalInfo, sendEvent);
+      hashEmail(data.email, additionalInfo, params);
   } else {
       if (!Object.keys(additionalInfo).length) additionalInfo = null; 
-      sendEvent(additionalInfo);
+      sendEvent(params, additionalInfo);
   }
 }
 
-// Handle base pixel - page view event
-if (data.eventType === 'PAGE_VIEW') {
-  // If page_view hasn't been sent for the ID yet, do it now
-  if (initPixel.indexOf(accountId) === -1) {
-    const pvParams = {
-      notify: 'event',
-      id: accountId,
-      name: 'page_view'
-    };
-    getAdditionalInfo((additionalInfo) => {
-        if (additionalInfo) pvParams.additionalInfo = additionalInfo;
-        _tfa(pvParams);
-    });
-    initPixelPush(accountId);
-  }
-}
-// Handle ecomm events
-else {
-  const params = {
-    notify: 'ecevent',
-    id: accountId,
-    name:data.eventType || data.eventType_enhanced,
-  };
-
-  const mapProducts = products => {
-    return products.map(i => {
-         return {
-           productId: i.id,
-           quantity: i.quantity,
-           price: i.price
-         };
-      });
-  };
-
-  const mapProductIds = products => {
-   return products.map(i => {
-        return i.id;
-      });    
-  };
-  
-  if (data.eventParseMode === "manual") {
+function enrichParamsManual(params) {
+    //we allways add these if they are set and not 0 or empty
     if (data.productIds) params.productIds = data.productIds;
     if (data.campaignIds) params.campaignIds = data.campaignIds;
     if (data.currency) params.currency = data.currency;
@@ -503,115 +480,123 @@ else {
     if (data.searchTerm) params.searchTerm = data.searchTerm;
     if (data.cartDetails) params.cartDetails = data.cartDetails;
     if (data.value) params.value = data.value;
-  } else {
-    const ecomm = copyFromDataLayer('ecommerce') || {};
-    
-    if (data.eventParseMode === "ga4") {
-      const hasItems = getType(ecomm.items) === 'array';
-      
-      if (hasItems && data.eventType_enhanced !== 'HOME_PAGE_VISIT' && data.eventType_enhanced !== 'PURCHASE') {
-        params.productIds = ecomm.items.map(item => item.item_id);
-      }
-      
-      if (hasItems && data.eventType_enhanced === 'PURCHASE') {
-        params.cartDetails = ecomm.items.map(item => ({ productId: item.item_id, quantity: item.quantity, price: item.price }));
-        params.currency = ecomm.currency;
-        params.value = ecomm.value;
-        params.orderId = ecomm.transaction_id;
-      }
-    } else if (data.eventParseMode === "ua") {
-      verifyMandatoryElements(data.eventType_enhanced, log, ecomm);
-  
-      if (data.eventType_enhanced === 'ADD_TO_CART' && ecomm.hasOwnProperty('add') && getType(ecomm.add.products) === 'array'){
-        params.productIds = mapProductIds(ecomm.add.products);
-      }
-  
-      if (data.eventType_enhanced === 'REMOVE_FROM_CART' && ecomm.hasOwnProperty('remove') && getType(ecomm.remove.products) === 'array') {
-         params.productIds = mapProductIds(ecomm.remove.products);   
-      }
-  
-      if(data.eventType_enhanced === 'PRODUCT_VIEW' && ecomm.hasOwnProperty('detail') && getType(ecomm.detail.products) === 'array') {
-        params.productIds = [ecomm.detail.products[0].id];
-      }
-  
-      if (data.eventType_enhanced === 'PURCHASE' && ecomm.hasOwnProperty('purchase')) {
-        params.cartDetails = mapProducts(ecomm.purchase.products);
-        params.currency = ecomm.currencyCode;
-        params.value = ecomm.purchase.actionField.revenue;
-        params.orderId = ecomm.purchase.actionField.id;
-      }
-  
-      if (data.eventType_enhanced === 'CHECKOUT' && ecomm.hasOwnProperty('checkout')) {
-        if(!ecomm.checkout.products) {
-         return; // when the checkout step doesn't have products data
+}
+
+function enrichParamsGa4(params, eventType, ecomm) {
+    if (getType(ecomm.items) === 'array') {
+        if (eventType === 'PURCHASE') {
+            params.cartDetails = ecomm.items.map(item => ({ productId: item.item_id, quantity: item.quantity, price: item.price }));
+            params.currency = ecomm.currency;
+            params.value = ecomm.value;
+            params.orderId = ecomm.transaction_id;
+        } else {
+            if (eventType !== 'HOME_PAGE_VISIT') {
+                params.productIds = ecomm.items.map(item => item.item_id);
+            }
         }
-        params.productIds = mapProductIds(ecomm.checkout.products);   
-      } 
-  
-      if (data.eventType_enhanced === 'CATEGORY_VIEW' && ecomm.hasOwnProperty('impressions')) {
-        params.productIds = mapProductIds(ecomm.impressions.slice(0,5));  
-        params.category = ecomm.impressions[0].category;   
-        if (data.categoryIdEnh) params.categoryId = data.categoryIdEnh;
+    }
+}
+
+function mapProducts(products) {
+  return products.map(i => {
+       return {
+         productId: i.id,
+         quantity: i.quantity,
+         price: i.price
+       };
+    });
+}
+
+function mapProductIds(products) {
+ return products.map(i => {
+      return i.id;
+    });
+}
+
+function enrichParamsUa(params, eventType, ecomm) {
+    if (eventType === 'ADD_TO_CART' && ecomm.hasOwnProperty('add') && getType(ecomm.add.products) === 'array'){
+      params.productIds = mapProductIds(ecomm.add.products);
+    }
+
+    if (eventType === 'REMOVE_FROM_CART' && ecomm.hasOwnProperty('remove') && getType(ecomm.remove.products) === 'array') {
+       params.productIds = mapProductIds(ecomm.remove.products);   
+    }
+
+    if(eventType === 'PRODUCT_VIEW' && ecomm.hasOwnProperty('detail') && getType(ecomm.detail.products) === 'array') {
+      if (ecomm.detail.products[0]) params.productIds = [ecomm.detail.products[0].id];
+    }
+
+    if (eventType === 'PURCHASE' && ecomm.hasOwnProperty('purchase')) {
+      if (getType(ecomm.purchase.products) === 'array') params.cartDetails = mapProducts(ecomm.purchase.products);
+      params.currency = ecomm.currencyCode;
+      if (ecomm.purchase.actionField) {
+          params.value = ecomm.purchase.actionField.revenue;
+          params.orderId = ecomm.purchase.actionField.id;
       }
     }
-  }
 
-  getAdditionalInfo((additionalInfo) => {
-      if (additionalInfo) {
-          params.additionalInfo = additionalInfo;
-      }
-      _tfa(params);
-  });
+    if (eventType === 'CHECKOUT' && ecomm.hasOwnProperty('checkout')) {
+      if (ecomm.checkout.products && getType(ecomm.checkout.products) === 'array') params.productIds = mapProductIds(ecomm.checkout.products);   
+    } 
+
+    if (eventType === 'CATEGORY_VIEW' && getType(ecomm.impressions) === 'array') {
+      let productIds = mapProductIds(ecomm.impressions.slice(0,5)).join(',');
+      if (productIds) params.productIds = productIds;
+      if (ecomm.impressions[0]) params.category = ecomm.impressions[0].category;   
+      if (data.categoryIdEnh) params.categoryId = data.categoryIdEnh;
+    }
 }
+
+function handleEcommEvent(eventType) {
+    if (eventType != 'PAGE_VIEW') {
+        const params = {
+          notify: 'ecevent',
+          id: accountId,
+          name: eventType,
+        };
+        
+        enrichParamsManual(params);
+        
+        let ecommData = copyFromDataLayer('ecommerce') || {};
+        log(ecommData);
+        //first enrich UA if for some reason both ua and ga4 are set override from ga4
+        enrichParamsUa(params, eventType, ecommData);
+        enrichParamsGa4(params, eventType, ecommData);
+        return params;
+    }
+}
+
+function handlePageView(eventType) {
+    if (eventType === 'PAGE_VIEW') {
+        log('got page view event');
+        // If page_view hasn't been sent for the ID yet, do it now
+        if (initPixel.indexOf(accountId) === -1) {
+          const pvParams = {
+            notify: 'event',
+            id: accountId,
+            name: 'page_view'
+          };
+          initPixelPush(accountId);
+          return pvParams;
+        }
+    }
+}
+
+log(data);
 
 // Load the Taboola script if not already loaded
 injectScript('https://cdn.taboola.com/libtrc/unip/' + encodeUriComponent(accountId) + '/tfa.js', data.gtmOnSuccess, data.gtmOnFailure, '_tfa_script');
 
+let eventTypes = [];
+if (data.eventType) eventTypes.push(data.eventType);
+if (data.eventType_enhanced) eventTypes.push(data.eventType_enhanced);
 
-// verify enhanced mandatory fields
-function verifyMandatoryElements(eventType, log, ecommData) {
-  if (isProductsMissing(eventType, ecommData)) {
-    log('Error - mandatory field (products) is missing in Enhanced Ecommerce data layer for event type ' + eventType);
-  }
-  
-  if (eventType === 'PURCHASE') {
-   if (isNullOrEmpty(ecommData.purchase.actionField) || isNullOrEmpty(ecommData.purchase.actionField.id)) {
-     log('Error - mandatory field (actionField.id) is missing in Enhanced Ecommerce data layer for event type PURCHASE');
-   }
-   if (isNullOrEmpty(ecommData.currencyCode)) {
-     log('Error - mandatory field (currencyCode) is missing in Enhanced Ecommerce data layer for event type PURCHASE');
-   }
-   if (isNullOrEmpty(ecommData.purchase.actionField.revenue)) {
-     log('Error - mandatory field (revenue) is missing in Enhanced Ecommerce data layer for event type PURCHASE');
-   }
-  }
-  
-  else if (eventType === 'CATEGORY_VIEW') {
-    if (isNullOrEmpty(ecommData.impressions) || isNullOrEmpty(ecommData.impressions[0]) || isNullOrEmpty(ecommData.impressions[0].category)) {
-    log('Error - mandatory field (impressions and/or category) is missing in Enhanced Ecommerce data layer for event type CATEGORY_VIEW');
-    }
-  }
-  
-  else {
-    return true;
-  }
-}
-
-function isProductsMissing (eventType, ecommData) {
-  if ((eventType === 'ADD_TO_CART' && isNullOrEmpty(ecommData.add.products)) ||
-     (eventType === 'REMOVE_FROM_CART' && isNullOrEmpty(ecommData.remove.products)) ||
-     (eventType === 'PRODUCT_VIEW' && isNullOrEmpty(ecommData.detail.products[0].id)) ||
-     (eventType === 'PURCHASE' && isNullOrEmpty(ecommData.purchase.products)) ||
-     (eventType === 'CHECKOUT' && isNullOrEmpty(ecommData.checkout.products)) ||
-     (eventType === 'CATEGORY_VIEW' && isNullOrEmpty(ecommData.impressions.slice(0,5)))) {
-    return true;
-  } else {
-    return false;
-  }
-}
-
-function isNullOrEmpty(val){
-    return (val === undefined || val == null || val.length <= 0) ? true : false;
+for (let i = 0; i < eventTypes.length; i++) {
+    let eventType = eventTypes[i];
+    let pvParams = handlePageView(eventType);
+    let ecommParams = handleEcommEvent(eventType);
+    if (pvParams) enrichWithAdditionalInfoAndSend(pvParams);
+    if (ecommParams) enrichWithAdditionalInfoAndSend(ecommParams);
 }
 
 
@@ -871,15 +856,6 @@ scenarios:
     \    };\n  } \n});\n\n// Call runCode to run the template's code.\nrunCode(mockData);\n\
     \n// Verify that the tag finished successfully.\nassertApi('injectScript').wasCalled();\n\
     \n\n"
-- name: enhanced checkout - step 2 - ignore
-  code: "const mockData = {\n  eventParseMode: \"ua\",\n  eventType_enhanced: 'CHECKOUT',\n\
-    \  accountId: '1'\n};\n\nconst dataLayer = {\n      checkout: {\n         actionField:\
-    \ {step: 2, \n                        option: 'MasterCard' \n                \
-    \    }\n       } \n  };\nmock('copyFromDataLayer', (key) => {\n  return dataLayer;\n\
-    });\n\nmock('sha256', (name, callback) => {callback(name + '_hashed');});\n//\
-    \ Call runCode to run the template's code.\nrunCode(mockData);\n\n// Verify that\
-    \ the tag finished successfully.\nassertApi('injectScript').wasNotCalled();\n\n\
-    \n"
 - name: enhanced add to cart
   code: "const mockData = {\n  eventParseMode: \"ua\",\n  eventType_enhanced: 'ADD_TO_CART',\n\
     \  accountId: '1'\n};\n\nconst dataLayer = {\n      add: {\n         actionField:\
@@ -915,8 +891,8 @@ scenarios:
     \    price: 999,\n            quantity: 5,\n            category: 'taboola category'\n\
     \        }]\n  };\n\nmock('copyFromDataLayer', (key) => {\n  return dataLayer;\n\
     });\n\nconst expected_params = {\n  notify: 'ecevent',\n  id: '1',\n  name: 'CATEGORY_VIEW',\n\
-    \  productIds: ['A123'],\n  category: 'taboola category',\n  categoryId: 123\n\
-    };\n\nmock('createQueue', (name) => {\n  if (name === '_tfa') {\n    return function(item)\
+    \  productIds: 'A123',\n  category: 'taboola category',\n  categoryId: 123\n};\n\
+    \nmock('createQueue', (name) => {\n  if (name === '_tfa') {\n    return function(item)\
     \ {\n      assertThat(item).isEqualTo(expected_params);\n    };\n  } \n});\nmock('sha256',\
     \ (name, callback) => {callback(name + '_hashed');});\n\n// Call runCode to run\
     \ the template's code.\nrunCode(mockData);\n\n// Verify that the tag finished\
