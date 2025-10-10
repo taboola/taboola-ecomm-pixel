@@ -555,13 +555,17 @@ function handleEcommEvent(eventType) {
           name: eventType,
         };
         
-        enrichParamsManual(params);
+      
+        let eventParseMode = data.eventParseMode;
+        if (eventParseMode != 'manual' && eventParseMode != 'ga4' && eventParseMode != 'ua') eventParseMode = 'auto';
+        
         
         let ecommData = copyFromDataLayer('ecommerce') || {};
         log(ecommData);
-        //first enrich UA if for some reason both ua and ga4 are set override from ga4
-        enrichParamsUa(params, eventType, ecommData);
-        enrichParamsGa4(params, eventType, ecommData);
+        //first enrich UA if for some reason both ua and ga4 are set override from ga4 if parse mode is auto aka not set
+        if (eventParseMode == 'ua' || eventParseMode == 'auto') enrichParamsUa(params, eventType, ecommData);
+        if (eventParseMode == 'ga4' || eventParseMode == 'auto') enrichParamsGa4(params, eventType, ecommData);
+        if (eventParseMode == 'manual' || eventParseMode == 'auto') enrichParamsManual(params);
         return params;
     }
 }
