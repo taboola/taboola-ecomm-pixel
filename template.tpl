@@ -457,7 +457,9 @@ function sendEvent(params, additionalInfo) {
 }
 
 function enrichWithAdditionalInfoAndSend(params) {
-  let additionalInfo = {};
+  let additionalInfo = {
+      gtmTemplateVersion: gtmTemplateVersion
+  };
   const ecomm = copyFromDataLayer('ecommerce') || {};
   if (ecomm.custType) additionalInfo.custType = ecomm.custType;
   if (data.custType) additionalInfo.custType = data.custType;
@@ -553,8 +555,7 @@ function handleEcommEvent(eventType) {
         const params = {
           notify: 'ecevent',
           id: accountId,
-          name: eventType,
-          gtmTemplateVersion: gtmTemplateVersion
+          name: eventType
         };
         
       
@@ -580,8 +581,7 @@ function handlePageView(eventType) {
           const pvParams = {
             notify: 'event',
             id: accountId,
-            name: 'page_view',
-            gtmTemplateVersion: gtmTemplateVersion
+            name: 'page_view'
           };
           initPixelPush(accountId);
           return pvParams;
