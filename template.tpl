@@ -437,6 +437,7 @@ const initPixelPush = createQueue('__tfa_pixel_init');
 const initPixel = copyFromWindow('__tfa_pixel_init');
 const _tfa = createQueue('_tfa');
 const accountId = data.accountId;
+const gtmTemplateVersion = '1.0.0';
 
 function hashEmail(email, additionalInfo, params) {
    sha256(email, (digest) => {
@@ -553,6 +554,7 @@ function handleEcommEvent(eventType) {
           notify: 'ecevent',
           id: accountId,
           name: eventType,
+          gtmTemplateVersion: gtmTemplateVersion
         };
         
       
@@ -578,7 +580,8 @@ function handlePageView(eventType) {
           const pvParams = {
             notify: 'event',
             id: accountId,
-            name: 'page_view'
+            name: 'page_view',
+            gtmTemplateVersion: gtmTemplateVersion
           };
           initPixelPush(accountId);
           return pvParams;
